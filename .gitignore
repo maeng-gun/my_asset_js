@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sensitive docs & manuals
+README.md
+MANUAL_TASKS_AND_RUN_GUIDE.md
+
+# shortcuts
+*.lnk

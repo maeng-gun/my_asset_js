@@ -1,0 +1,8 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "모든 커밋 메시지는 반드시 한국어로 작성해주세요. 'feat: ', 'fix: ', 'refactor: ', 'docs: ', 'chore: ' 등의 Conventional Commits 접두사 뒤에 명확하고 간결한 한국어 설명을 붙여주세요."
+    }
+  ],
+  "github.copilot.chat.localeOverride": "ko"
+}
