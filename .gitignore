@@ -43,6 +43,7 @@ next-env.d.ts
 # sensitive docs & manuals
 README.md
 MANUAL_TASKS_AND_RUN_GUIDE.md
+OTHER_PC_SETUP_GUIDE.md
 
 # shortcuts
 *.lnk
