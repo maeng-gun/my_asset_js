@@ -25,11 +25,11 @@ export async function runPortfolioValuation(): Promise<{
 
   // 1. DB에서 마스터 데이터 및 일별 거래내역 로드
   const [
-    { data: assetsRaw },
-    { data: pensionRaw },
-    { data: assetsDailyRaw },
-    { data: pensionDailyRaw },
-    { data: groupsRaw },
+    { data: assetsRaw, error: assetsErr },
+    { data: pensionRaw, error: pensionErr },
+    { data: assetsDailyRaw, error: assetsDailyErr },
+    { data: pensionDailyRaw, error: pensionDailyErr },
+    { data: groupsRaw, error: groupsErr },
   ] = await Promise.all([
     supabase.from('assets').select('*').order('행번호', { ascending: true }),
     supabase.from('pension').select('*').order('행번호', { ascending: true }),
@@ -38,11 +38,34 @@ export async function runPortfolioValuation(): Promise<{
     supabase.from('groups').select('*'),
   ])
 
+  // Fail-fast 방어 로직: DB 접근 실패 시 스냅샷 빈 데이터 덮어쓰기 방지
+  if (assetsErr || pensionErr || assetsDailyErr || pensionDailyErr || groupsErr) {
+    console.error('[PortfolioRunner] DB Fetch Error:', {
+      assetsErr, pensionErr, assetsDailyErr, pensionDailyErr, groupsErr
+    })
+    return {
+      success: false,
+      today: todayStr,
+      exchangeRates: { USD: 1400, JPY: 9.3 },
+      summary: {} as LatestPortfolioSummary // 빈 객체 대신 null을 던지거나 적절히 처리할 수 있으나 타입에 맞춰 반환
+    }
+  }
+
   const assets = (assetsRaw || []) as AssetMaster[]
   const pension = (pensionRaw || []) as AssetMaster[]
   const assetsDaily = (assetsDailyRaw || []) as DailyTradeRaw[]
   const pensionDaily = (pensionDailyRaw || []) as DailyTradeRaw[]
   const groups = (groupsRaw || []) as Array<{ 자산군: string; 세부자산군: string; 세부자산군2: string }>
+
+  if (assets.length === 0 && pension.length === 0) {
+    console.warn('[PortfolioRunner] Assets and Pension data are entirely empty. Aborting to prevent overriding snapshot with zeroes.')
+    return {
+      success: false,
+      today: todayStr,
+      exchangeRates: { USD: 1400, JPY: 9.3 },
+      summary: {} as LatestPortfolioSummary
+    }
+  }
 
   // 2. 환율, 금 시세, KIS 시세 수집
   let exchangeRates = { USD: 1400, JPY: 9.3 }
@@ -204,11 +227,15 @@ export async function runPortfolioValuation(): Promise<{
     ...v,
   }))
 
+  // t_comm3에서 현재 연도의 <합계> 평가금액 추출
+  const currentEvalAmt = tComm3.find((r) => r.자산군 === '<합계>')?.평가금액
+
   const totalProfit = computeTotalProfit(
     bookInfo,
     evalProfitRows || [],
     returnAllRows || [],
-    currentYear
+    currentYear,
+    currentEvalAmt
   )
 
   const profitVariation = computeProfitVariation(

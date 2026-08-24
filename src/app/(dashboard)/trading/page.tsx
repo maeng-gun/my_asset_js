@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
-import { createClient } from '@/lib/supabase/client'
+import { getTickers, getTradeHistory, getCategories, addTrade, deleteTrade } from '@/lib/actions/db'
 import { formatKRW } from '@/lib/utils'
 import { toast } from 'sonner'
 import { subMonths, format } from 'date-fns'
@@ -29,7 +29,6 @@ const TABS: TabItem[] = [
 export default function TradingPage() {
   const [activeTab, setActiveTab] = useState('history')
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   // 1. 거래내역 입력 폼 상태
   const [tradeType, setTradeType] = useState<'투자자산' | '연금자산'>('투자자산')
@@ -57,10 +56,7 @@ export default function TradingPage() {
   const { data: tickersData } = useQuery({
     queryKey: ['tickers-list', tradeType],
     queryFn: async () => {
-      const table = tradeType === '투자자산' ? 'assets' : 'pension'
-      const { data, error } = await supabase.from(table).select('*').order('행번호', { ascending: true })
-      if (error) throw error
-      return (data || []) as any[]
+      return await getTickers(tradeType)
     },
   })
 
@@ -68,17 +64,7 @@ export default function TradingPage() {
   const { data: tradeHistory, isLoading } = useQuery({
     queryKey: ['trade-history', tradeType, account, currency, limitCount],
     queryFn: async () => {
-      const dailyTable = tradeType === '투자자산' ? 'assets_daily' : 'pension_daily'
-      const { data, error } = await supabase
-        .from(dailyTable)
-        .select('*')
-        .eq('계좌', account)
-        .order('거래일자', { ascending: false })
-        .order('행번호', { ascending: false })
-        .limit(limitCount)
-
-      if (error) throw error
-      return (data || []) as any[]
+      return await getTradeHistory(tradeType, account, currency, limitCount)
     },
   })
 
@@ -86,9 +72,7 @@ export default function TradingPage() {
   const { data: categories } = useQuery({
     queryKey: ['categories-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('categories').select('*')
-      if (error) throw error
-      return (data || []) as any[]
+      return await getCategories()
     },
   })
 
@@ -109,18 +93,7 @@ export default function TradingPage() {
   // 거래내역 추가 Mutation
   const addTradeMutation = useMutation({
     mutationFn: async () => {
-      const dailyTable = tradeType === '투자자산' ? 'assets_daily' : 'pension_daily'
-      const { data: maxRow } = await supabase
-        .from(dailyTable)
-        .select('*')
-        .order('행번호', { ascending: false })
-        .limit(1)
-        .single()
-
-      const nextNum = ((maxRow as any)?.행번호 || 0) + 1
-
       const newRecord = {
-        행번호: nextNum,
         계좌: account,
         종목코드: selectedTicker,
         거래일자: tradeDate,
@@ -134,9 +107,7 @@ export default function TradingPage() {
         현금수입: cashIn,
         입출금: inOut,
       }
-
-      const { error } = await supabase.from(dailyTable).insert(newRecord)
-      if (error) throw error
+      await addTrade(tradeType, newRecord)
     },
     onSuccess: () => {
       toast.success('거래내역이 추가되었습니다.')
@@ -162,9 +133,7 @@ export default function TradingPage() {
   // 거래내역 삭제 Mutation
   const deleteTradeMutation = useMutation({
     mutationFn: async (id: number) => {
-      const dailyTable = tradeType === '투자자산' ? 'assets_daily' : 'pension_daily'
-      const { error } = await supabase.from(dailyTable).delete().eq('행번호', id)
-      if (error) throw error
+      await deleteTrade(tradeType, id)
     },
     onSuccess: () => {
       toast.success('거래내역이 삭제되었습니다.')

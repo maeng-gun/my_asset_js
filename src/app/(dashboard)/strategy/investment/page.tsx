@@ -49,16 +49,16 @@ export default function InvestmentStrategyPage() {
     },
   })
 
-  // 2. 종목 탐색 10년 정밀 분석 API 쿼리
+  // 2. 종목 탐색 정밀 분석 API 쿼리 (외부 API 연동)
   const { data: tickerData, isLoading: isTickerLoading, refetch: refetchTicker } = useQuery({
     queryKey: ['ticker-analysis', activeSearchTicker, searchBm],
     queryFn: async () => {
       const res = await fetch(
-        `/api/portfolio/analytics/investment?ticker=${activeSearchTicker}&bm=${searchBm}`
+        `/api/ticker?ticker=${activeSearchTicker}&benchmark=${searchBm}`
       )
       if (!res.ok) throw new Error('종목 분석 데이터 로드 실패')
       const json = await res.json()
-      return json?.tickerAnalysis
+      return json?.data
     },
     enabled: !!activeSearchTicker,
   })
@@ -166,8 +166,9 @@ export default function InvestmentStrategyPage() {
   }
 
   // 3. 종목 탐색 누적수익률 ECharts 옵션
-  const tickerCumList = (tickerData?.cum_df || []) as Array<{ date: string; ticker: number; bm: number }>
-  const tickerDDList = (tickerData?.dd_df || []) as Array<{ date: string; dd: number }>
+  const tickerDates = tickerData?.dates || []
+  const tickerCumList = tickerData?.tickerCumReturns || []
+  const bmCumList = tickerData?.benchmarkCumReturns || []
 
   const tickerCumChartOption = {
     backgroundColor: 'transparent',
@@ -181,7 +182,7 @@ export default function InvestmentStrategyPage() {
     grid: { left: '3%', right: '4%', bottom: '12%', top: '18%', containLabel: true },
     xAxis: {
       type: 'category',
-      data: tickerCumList.map((d) => d.date),
+      data: tickerDates,
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
@@ -197,7 +198,7 @@ export default function InvestmentStrategyPage() {
       {
         name: `${activeSearchTicker} 누적수익률`,
         type: 'line',
-        data: tickerCumList.map((d) => d.ticker),
+        data: tickerCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
         symbol: 'none',
         lineStyle: { color: '#38bdf8', width: 2.5 },
@@ -205,7 +206,7 @@ export default function InvestmentStrategyPage() {
       {
         name: `${searchBm} 벤치마크`,
         type: 'line',
-        data: tickerCumList.map((d) => d.bm),
+        data: bmCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
         symbol: 'none',
         lineStyle: { color: '#94a3b8', width: 2, type: 'dashed' },
@@ -225,7 +226,7 @@ export default function InvestmentStrategyPage() {
     grid: { left: '3%', right: '4%', bottom: '12%', top: '20%', containLabel: true },
     xAxis: {
       type: 'category',
-      data: tickerDDList.map((d) => d.date),
+      data: tickerDates,
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
@@ -241,7 +242,15 @@ export default function InvestmentStrategyPage() {
       {
         name: 'Drawdown (DD)',
         type: 'line',
-        data: tickerDDList.map((d) => d.dd),
+        // calculate MDD array inline for chart
+        data: (() => {
+          let peak = 1
+          return tickerCumList.map((cumRet: number) => {
+            const wealth = 1 + cumRet
+            if (wealth > peak) peak = wealth
+            return peak > 1 ? Number((((wealth - peak) / peak) * 100).toFixed(2)) : (cumRet < 0 ? Number((cumRet * 100).toFixed(2)) : 0)
+          })
+        })(),
         smooth: true,
         symbol: 'none',
         lineStyle: { color: '#f43f5e', width: 1.5 },
@@ -382,11 +391,27 @@ export default function InvestmentStrategyPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {(tickerData?.stats_df || []).map((s: any, i: number) => (
+                    {[
+                      { label: '연환산수익률 (CAGR)', key: 'cagr', format: true },
+                      { label: '연환산변동성', key: 'volatility', format: true },
+                      { label: 'Sharpe Ratio', key: 'sharpe', format: false },
+                      { label: 'Max Drawdown (MDD)', key: 'mdd', format: true },
+                      { label: 'Beta (시장민감도)', key: 'beta', format: false },
+                      { label: 'Alpha (초과수익)', key: 'alpha', format: true },
+                      { label: 'Correlation (상관성)', key: 'correlation', format: false },
+                    ].map((s, i) => (
                       <tr key={i} className="hover:bg-slate-800/40 transition">
-                        <td className="py-2 px-3 font-sans text-slate-300 font-medium">{s.지표}</td>
-                        <td className="py-2 px-3 text-right font-bold text-slate-100">{s.종목}</td>
-                        <td className="py-2 px-3 text-right text-slate-400">{s.벤치마크}</td>
+                        <td className="py-2 px-3 font-sans text-slate-300 font-medium">{s.label}</td>
+                        <td className="py-2 px-3 text-right font-bold text-slate-100">
+                          {tickerData?.stats?.target
+                            ? (s.format ? formatPercent(tickerData.stats.target[s.key as keyof typeof tickerData.stats.target]) : (tickerData.stats.target[s.key as keyof typeof tickerData.stats.target] as number)?.toFixed(2))
+                            : '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right text-slate-400">
+                          {tickerData?.stats?.benchmark
+                            ? (s.format ? formatPercent(tickerData.stats.benchmark[s.key as keyof typeof tickerData.stats.benchmark]) : (tickerData.stats.benchmark[s.key as keyof typeof tickerData.stats.benchmark] as number)?.toFixed(2))
+                            : '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

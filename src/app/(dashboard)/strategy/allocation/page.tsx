@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
 import { EChartsWrapper } from '@/components/charts/echarts-wrapper'
-import { createClient } from '@/lib/supabase/client'
+import { getLatestPortfolioSummary, getAlloTableRows } from '@/lib/actions/db'
 import { formatPercent } from '@/lib/utils'
 import {
   PieChart,
@@ -24,18 +24,11 @@ const TABS: TabItem[] = [
 export default function AllocationStrategyPage() {
   const [activeTab, setActiveTab] = useState('ratio')
   const [selectedStrategy, setSelectedStrategy] = useState('SAA')
-  const supabase = createClient()
-
   // 1. 최신 포트폴리오 스냅샷 쿼리 (현재 보유 비중)
   const { data: summary } = useQuery({
     queryKey: ['latest-portfolio-summary'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('latest_portfolio_summary')
-        .select('*')
-        .eq('id', 'latest')
-        .single()
-      if (error) throw error
+      const data = await getLatestPortfolioSummary()
       return data as LatestPortfolioSummary
     },
   })
@@ -44,12 +37,8 @@ export default function AllocationStrategyPage() {
   const { data: alloRows } = useQuery({
     queryKey: ['allo-table-rows'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('allo_table')
-        .select('*')
-        .order('행번호', { ascending: true })
-      if (error) throw error
-      return (data || []) as any[]
+      const data = await getAlloTableRows()
+      return data as any[]
     },
   })
 

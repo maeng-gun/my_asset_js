@@ -18,7 +18,8 @@ export function computeTotalProfit(
   bookInfoRows: Array<{ 연도: number; 장부금액: number; 평잔: number; 실현손익: number }>,
   evalProfitRows: Array<{ 연도: number; 평가손익: number }>,
   returnRows: Array<{ 기준일: string; 자산군: string; 평가금액: number; 총손익: number }>,
-  currentYear = new Date().getFullYear()
+  currentYear = new Date().getFullYear(),
+  currentEvalAmt?: number // t_comm3 <합계> 평가금액 — 현재 연도에 직접 사용
 ): TotalProfitRecord[] {
   const base2023: TotalProfitRecord = {
     연도: '2023',
@@ -39,13 +40,22 @@ export function computeTotalProfit(
     evalMap.set(Number(ep.연도), (evalMap.get(Number(ep.연도)) || 0) + (ep.평가손익 || 0))
   }
 
-  // return 테이블에서 연말(12-31) 또는 최신일자 <합계> 평가금액 매핑
-  const returnMap = new Map<number, number>()
+  // return 테이블에서 연도별 <합계> 평가금액 매핑
+  // 같은 연도에 여러 날짜가 있을 경우, 가장 최신(마지막) 날짜의 값을 사용
+  const returnDateMap = new Map<number, { date: string; amt: number }>()
   for (const r of returnRows) {
     if (r.자산군 === '<합계>') {
       const y = Number(r.기준일.substring(0, 4))
-      returnMap.set(y, r.평가금액 || 0)
+      const dateStr = r.기준일.substring(0, 10)
+      const existing = returnDateMap.get(y)
+      if (!existing || dateStr >= existing.date) {
+        returnDateMap.set(y, { date: dateStr, amt: r.평가금액 || 0 })
+      }
     }
+  }
+  const returnMap = new Map<number, number>()
+  for (const [y, v] of returnDateMap) {
+    returnMap.set(y, v.amt)
   }
 
   const result: TotalProfitRecord[] = [base2023]
@@ -58,7 +68,10 @@ export function computeTotalProfit(
   for (const b of sortedBook) {
     const curYear = Number(b.연도)
     const evalProfit = evalMap.get(curYear) || 0
-    const evalAmt = returnMap.get(curYear) || 0
+    // 현재 연도는 t_comm3 합계 평가금액을 우선 사용 (가장 정확한 실시간 값)
+    const evalAmt = (curYear === currentYear && currentEvalAmt != null)
+      ? currentEvalAmt
+      : (returnMap.get(curYear) || 0)
     const evalChange = evalProfit - prevEvalProfit
     const totalProfit = b.실현손익 + evalChange
 
@@ -85,6 +98,7 @@ export function computeTotalProfit(
 
   return result
 }
+
 
 /**
  * R6 compute_profit_variation 포팅

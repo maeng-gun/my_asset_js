@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
-import { createClient } from '@/lib/supabase/client'
+import { getLatestPortfolioSummary } from '@/lib/actions/db'
 import { formatKRW, formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
@@ -24,18 +24,11 @@ const TABS: TabItem[] = [
 
 export default function HoldingsPage() {
   const [activeTab, setActiveTab] = useState('allocation')
-  const supabase = createClient()
-
   // 1. 최신 포트폴리오 스냅샷 쿼리 (0.01초 로드)
   const { data: summary, isLoading } = useQuery({
     queryKey: ['latest-portfolio-summary'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('latest_portfolio_summary')
-        .select('*')
-        .eq('id', 'latest')
-        .single()
-      if (error) throw error
+      const data = await getLatestPortfolioSummary()
       return data as LatestPortfolioSummary
     },
   })

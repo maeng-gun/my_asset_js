@@ -7,7 +7,7 @@ import { Tabs, TabItem } from '@/components/ui/tabs'
 import { EChartsWrapper } from '@/components/charts/echarts-wrapper'
 import { formatKRW, formatPercent } from '@/lib/utils'
 import { buildProfitTrendData, buildAssetProfitData } from '@/lib/engine/analytics'
-import { createClient } from '@/lib/supabase/client'
+import { getLatestPortfolioSummary, getReturnData } from '@/lib/actions/db'
 import { subMonths, format } from 'date-fns'
 import {
   TrendingUp,
@@ -36,38 +36,27 @@ export default function ProfitPage() {
   )
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
-  const supabase = createClient()
-
   // 1. 최신 포트폴리오 스냅샷 쿼리 (0.01초 로딩)
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['latest-portfolio-summary'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('latest_portfolio_summary')
-        .select('*')
-        .eq('id', 'latest')
-        .single()
-      if (error) throw error
+      const data = await getLatestPortfolioSummary()
       return data as LatestPortfolioSummary
     },
   })
 
   // 2. return 시계열 데이터 쿼리 (손익변동 차트용)
-  const { data: returnData } = useQuery({
+  const { data: returnDataRows } = useQuery({
     queryKey: ['profit-return-data'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('return')
-        .select('*')
-        .order('기준일', { ascending: true })
-      if (error) throw error
+      const data = await getReturnData()
       return data || []
     },
   })
 
   // 차트 데이터 계산
-  const trendData = returnData ? buildProfitTrendData(returnData, startDate, endDate) : []
-  const assetTrendData = returnData ? buildAssetProfitData(returnData, startDate, endDate) : {}
+  const trendData = returnDataRows ? buildProfitTrendData(returnDataRows, startDate, endDate) : []
+  const assetTrendData = returnDataRows ? buildAssetProfitData(returnDataRows, startDate, endDate) : {}
 
   // 종합 차트 ECharts 옵션
   const totalChartOption = {

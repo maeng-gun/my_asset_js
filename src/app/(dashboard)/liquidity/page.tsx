@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
 import { EChartsWrapper } from '@/components/charts/echarts-wrapper'
-import { createClient } from '@/lib/supabase/client'
+import { getInflowList, addInflowRecord, updateInflowRecord, deleteInflowRecord } from '@/lib/actions/db'
 import { formatKRW } from '@/lib/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -28,7 +28,6 @@ const TABS: TabItem[] = [
 export default function LiquidityPage() {
   const [activeTab, setActiveTab] = useState('inflow')
   const queryClient = useQueryClient()
-  const supabase = createClient()
 
   // 1. 유출입 폼 상태
   const [selectedInflowId, setSelectedInflowId] = useState<string>('new')
@@ -52,12 +51,8 @@ export default function LiquidityPage() {
   const { data: inflowList } = useQuery({
     queryKey: ['liquidity-inflow-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('inflow')
-        .select('*')
-        .order('거래일자', { ascending: true })
-      if (error) throw error
-      return (data || []) as any[]
+      const data = await getInflowList()
+      return data as any[]
     },
   })
 
@@ -83,25 +78,15 @@ export default function LiquidityPage() {
   // 유출입 추가 Mutation
   const addInflowMutation = useMutation({
     mutationFn: async () => {
-      const { data: maxRow } = await supabase
-        .from('inflow')
-        .select('행번호')
-        .order('행번호', { ascending: false })
-        .limit(1)
-        .single()
-      const nextNum = ((maxRow as any)?.행번호 || 0) + 1
-
       const signedAmt = inflowType === '출금' ? -Math.abs(inflowAmt) : Math.abs(inflowAmt)
 
-      const { error } = await supabase.from('inflow').insert({
-        행번호: nextNum,
+      await addInflowRecord({
         거래일자: inflowDate,
         계좌: inflowAccount,
         자금유출입: signedAmt,
         구분: inflowType,
         금액: Math.abs(inflowAmt),
       })
-      if (error) throw error
     },
     onSuccess: () => {
       toast.success('유출입 내역이 추가되었습니다.')
@@ -121,18 +106,13 @@ export default function LiquidityPage() {
       if (selectedInflowId === 'new') return
       const signedAmt = inflowType === '출금' ? -Math.abs(inflowAmt) : Math.abs(inflowAmt)
 
-      const { error } = await supabase
-        .from('inflow')
-        .update({
-          거래일자: inflowDate,
-          계좌: inflowAccount,
-          자금유출입: signedAmt,
-          구분: inflowType,
-          금액: Math.abs(inflowAmt),
-        })
-        .eq('행번호', Number(selectedInflowId))
-
-      if (error) throw error
+      await updateInflowRecord(Number(selectedInflowId), {
+        거래일자: inflowDate,
+        계좌: inflowAccount,
+        자금유출입: signedAmt,
+        구분: inflowType,
+        금액: Math.abs(inflowAmt),
+      })
     },
     onSuccess: () => {
       toast.success('유출입 내역이 수정되었습니다.')
@@ -150,12 +130,7 @@ export default function LiquidityPage() {
   const deleteInflowMutation = useMutation({
     mutationFn: async () => {
       if (selectedInflowId === 'new') return
-      const { error } = await supabase
-        .from('inflow')
-        .delete()
-        .eq('행번호', Number(selectedInflowId))
-
-      if (error) throw error
+      await deleteInflowRecord(Number(selectedInflowId))
     },
     onSuccess: () => {
       toast.success('유출입 내역이 삭제되었습니다.')
