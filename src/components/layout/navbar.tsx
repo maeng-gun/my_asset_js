@@ -20,6 +20,7 @@ import {
   Power,
   Menu,
   X,
+  Tag,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { name: '투자전략', href: '/strategy/investment', icon: Lightbulb },
   { name: '배분전략', href: '/strategy/allocation', icon: Layers },
   { name: '유동성 관리', href: '/liquidity', icon: Activity },
+  { name: '설정', href: '/settings/asset', icon: Tag },
 ]
 
 export function Navbar() {

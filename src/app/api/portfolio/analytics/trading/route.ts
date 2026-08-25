@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
 
     const startDate = searchParams.get('startDate') || '2024-01-01'
     const endDate = searchParams.get('endDate') || new Date().toISOString().substring(0, 10)
+    const assetClass = searchParams.get('assetClass') || '전체'
 
     const [
       { data: assetsMaster },
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
       fetchAll(supabase, 'pension_daily'),
     ])
 
-    const totalTrades = calcTotalTrading(
+    let totalTrades = calcTotalTrading(
       assetsMaster || [],
       pensionMaster || [],
       assetsDaily || [],
@@ -32,10 +33,15 @@ export async function GET(req: NextRequest) {
       endDate
     )
 
+    if (assetClass !== '전체') {
+      totalTrades = totalTrades.filter((t: any) => t['자산군'] === assetClass)
+    }
+
     return NextResponse.json({
       success: true,
       startDate,
       endDate,
+      assetClass,
       totalTrades,
     })
   } catch (err: unknown) {

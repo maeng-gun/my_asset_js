@@ -300,32 +300,48 @@ export default function HoldingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {(summary?.t_comm10 || []).map((h, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2.5 px-4 font-sans font-semibold text-slate-200">{h.자산군}</td>
-                    <td className="py-2.5 px-4 font-sans text-slate-400">{h.세부자산군 || '-'}</td>
-                    <td className="py-2.5 px-4 font-sans text-slate-400">{h.세부자산군2 || '-'}</td>
-                    <td className="py-2.5 px-4 font-sans font-medium text-slate-100 max-w-[200px] truncate" title={h.상품명}>
-                      {h.상품명}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-semibold text-slate-100">{formatKRW(h.평가금액)}</td>
-                    <td
-                      className={`py-2.5 px-4 text-right font-semibold ${
-                        (h.평가손익 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {formatKRW(h.평가손익)}
-                    </td>
-                    <td
-                      className={`py-2.5 px-4 text-right font-bold ${
-                        (h.평가수익률 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {formatPercent(h.평가수익률)}
-                    </td>
-                    <td className="py-2.5 px-4 font-sans text-slate-300">{h.계좌}</td>
-                  </tr>
-                ))}
+                {(() => {
+                  const commodityOrder = new Map()
+                  ;(summary?.t_comm || []).forEach((h, i) => {
+                    if (h.상품명 && !commodityOrder.has(h.상품명)) {
+                      commodityOrder.set(h.상품명, i)
+                    }
+                  })
+
+                  const sortedData = [...(summary?.t_comm10 || [])].sort((a, b) => {
+                    const orderA = commodityOrder.get(a.상품명) ?? 999999
+                    const orderB = commodityOrder.get(b.상품명) ?? 999999
+                    if (orderA !== orderB) return orderA - orderB
+                    return (a.계좌 || '').localeCompare(b.계좌 || '')
+                  })
+
+                  return sortedData.map((h, i) => (
+                    <tr key={i} className="hover:bg-slate-800/40 transition">
+                      <td className="py-2.5 px-4 font-sans font-semibold text-slate-200">{h.자산군}</td>
+                      <td className="py-2.5 px-4 font-sans text-slate-400">{h.세부자산군 || '-'}</td>
+                      <td className="py-2.5 px-4 font-sans text-slate-400">{h.세부자산군2 || '-'}</td>
+                      <td className="py-2.5 px-4 font-sans font-medium text-slate-100 max-w-[200px] truncate" title={h.상품명}>
+                        {h.상품명}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-semibold text-slate-100">{formatKRW(h.평가금액)}</td>
+                      <td
+                        className={`py-2.5 px-4 text-right font-semibold ${
+                          (h.평가손익 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {formatKRW(h.평가손익)}
+                      </td>
+                      <td
+                        className={`py-2.5 px-4 text-right font-bold ${
+                          (h.평가수익률 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {formatPercent(h.평가수익률)}
+                      </td>
+                      <td className="py-2.5 px-4 font-sans text-slate-300">{h.계좌}</td>
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </CardBody>

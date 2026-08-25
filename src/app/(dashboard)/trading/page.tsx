@@ -21,8 +21,6 @@ import {
 
 const TABS: TabItem[] = [
   { id: 'history', label: '거래내역', icon: Receipt },
-  { id: 'tickers', label: '투자종목 관리', icon: Tag },
-  { id: 'categories', label: '구분항목 관리', icon: Layers },
   { id: 'total', label: '종합거래내역', icon: ListFilter },
 ]
 
@@ -409,82 +407,6 @@ export default function TradingPage() {
               </table>
             </CardBody>
           </Card>
-        </div>
-      )}
-
-      {/* 탭 2: 투자종목 관리 */}
-      {activeTab === 'tickers' && (
-        <Card>
-          <CardHeader title="등록된 투자종목 목록" subtitle="자산군 및 상품명 분류 매핑" />
-          <CardBody className="p-0 overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
-                  <th className="py-3 px-4">계좌</th>
-                  <th className="py-3 px-4">종목코드</th>
-                  <th className="py-3 px-4">종목명</th>
-                  <th className="py-3 px-4">상품명</th>
-                  <th className="py-3 px-4">자산군</th>
-                  <th className="py-3 px-4">세부자산군</th>
-                  <th className="py-3 px-4">세부자산군2</th>
-                  <th className="py-3 px-4">통화</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {(tickersData || []).map((t: any, i: number) => (
-                  <tr key={i} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2.5 px-4 font-semibold text-slate-200">{t.계좌}</td>
-                    <td className="py-2.5 px-4 font-mono text-emerald-400">{t.종목코드}</td>
-                    <td className="py-2.5 px-4 font-medium text-slate-100">{t.종목명}</td>
-                    <td className="py-2.5 px-4 text-slate-300">{t.상품명}</td>
-                    <td className="py-2.5 px-4 text-slate-400">{t.자산군}</td>
-                    <td className="py-2.5 px-4 text-slate-400">{t.세부자산군}</td>
-                    <td className="py-2.5 px-4 text-slate-400">{t.세부자산군2}</td>
-                    <td className="py-2.5 px-4 text-slate-400">{t.통화}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* 탭 3: 구분항목 관리 */}
-      {activeTab === 'categories' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {['ass_account', 'ass_class', 'ass_class1', 'ass_class2', 'ass_cur', 'pen_account'].map((key) => (
-            <Card key={key}>
-              <CardHeader
-                title={
-                  key === 'ass_account'
-                    ? '투자계좌'
-                    : key === 'pen_account'
-                    ? '연금계좌'
-                    : key === 'ass_cur'
-                    ? '통화'
-                    : key === 'ass_class'
-                    ? '자산군'
-                    : key === 'ass_class1'
-                    ? '세부자산군'
-                    : '세부자산군2'
-                }
-              />
-              <CardBody>
-                <div className="flex flex-wrap gap-2">
-                  {(categories || [])
-                    .filter((c: any) => c.key === key)
-                    .map((c: any, i: number) => (
-                      <span
-                        key={i}
-                        className="px-3 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-medium"
-                      >
-                        {c.value}
-                      </span>
-                    ))}
-                </div>
-              </CardBody>
-            </Card>
-          ))}
         </div>
       )}
 

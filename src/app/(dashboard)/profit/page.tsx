@@ -32,7 +32,7 @@ const TABS: TabItem[] = [
 export default function ProfitPage() {
   const [activeTab, setActiveTab] = useState('total')
   const [startDate, setStartDate] = useState(
-    format(subMonths(new Date(), 6), 'yyyy-MM-dd')
+    `${new Date().getFullYear() - 1}-12-31`
   )
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
@@ -347,6 +347,12 @@ export default function ProfitPage() {
             />
             <div className="flex gap-1.5 ml-auto">
               <button
+                onClick={() => setStartDate(`${new Date().getFullYear() - 1}-12-31`)}
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-slate-300"
+              >
+                YTD
+              </button>
+              <button
                 onClick={() => setStartDate(format(subMonths(new Date(), 1), 'yyyy-MM-dd'))}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-md text-slate-300"
               >
@@ -650,37 +656,53 @@ export default function ProfitPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {(summary?.comm_profit2 || []).map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40 transition">
-                    <td className="py-2.5 px-3 font-sans font-semibold text-slate-200">{r.자산군}</td>
-                    <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군 || '-'}</td>
-                    <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군2 || '-'}</td>
-                    <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={r.종목명}>
-                      {r.종목명}
-                    </td>
-                    <td className="py-2.5 px-3 font-sans text-slate-300">{r.계좌}</td>
-                    <td className="py-2.5 px-3 font-sans text-slate-400">{r.통화}</td>
-                    <td className="py-2.5 px-3 text-right">{formatKRW(r.보유수량)}</td>
-                    <td className="py-2.5 px-3 text-right">{formatKRW(r.장부금액)}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-100 font-medium">{formatKRW(r.평가금액)}</td>
-                    <td className={`py-2.5 px-3 text-right ${r.평가손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatKRW(r.평가손익)}
-                    </td>
-                    <td className={`py-2.5 px-3 text-right ${r.실현손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatKRW(r.실현손익)}
-                    </td>
-                    <td
-                      className={`py-2.5 px-3 text-right font-bold border-x border-slate-800 bg-slate-900/30 ${
-                        r.총손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {formatKRW(r.총손익)}
-                    </td>
-                    <td className={`py-2.5 px-3 text-right font-bold ${r.총수익률 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatPercent(r.총수익률)}
-                    </td>
-                  </tr>
-                ))}
+                {(() => {
+                  const commodityOrder = new Map()
+                  ;(summary?.t_comm || []).forEach((h, i) => {
+                    if (h.상품명 && !commodityOrder.has(h.상품명)) {
+                      commodityOrder.set(h.상품명, i)
+                    }
+                  })
+
+                  const sortedData = [...(summary?.comm_profit2 || [])].sort((a, b) => {
+                    const orderA = commodityOrder.get(a.종목명) ?? 999999
+                    const orderB = commodityOrder.get(b.종목명) ?? 999999
+                    if (orderA !== orderB) return orderA - orderB
+                    return (a.계좌 || '').localeCompare(b.계좌 || '')
+                  })
+
+                  return sortedData.map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-800/40 transition">
+                      <td className="py-2.5 px-3 font-sans font-semibold text-slate-200">{r.자산군}</td>
+                      <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군 || '-'}</td>
+                      <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군2 || '-'}</td>
+                      <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={r.종목명}>
+                        {r.종목명}
+                      </td>
+                      <td className="py-2.5 px-3 font-sans text-slate-300">{r.계좌}</td>
+                      <td className="py-2.5 px-3 font-sans text-slate-400">{r.통화}</td>
+                      <td className="py-2.5 px-3 text-right">{formatKRW(r.보유수량)}</td>
+                      <td className="py-2.5 px-3 text-right">{formatKRW(r.장부금액)}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-100 font-medium">{formatKRW(r.평가금액)}</td>
+                      <td className={`py-2.5 px-3 text-right ${r.평가손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatKRW(r.평가손익)}
+                      </td>
+                      <td className={`py-2.5 px-3 text-right ${r.실현손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatKRW(r.실현손익)}
+                      </td>
+                      <td
+                        className={`py-2.5 px-3 text-right font-bold border-x border-slate-800 bg-slate-900/30 ${
+                          r.총손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {formatKRW(r.총손익)}
+                      </td>
+                      <td className={`py-2.5 px-3 text-right font-bold ${r.총수익률 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatPercent(r.총수익률)}
+                      </td>
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </CardBody>
