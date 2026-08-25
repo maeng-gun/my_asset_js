@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 import { subDays, parseISO, format } from 'date-fns'
 import { buildAssetPerformanceData } from '@/lib/engine/asset-performance'
 
@@ -12,10 +13,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get('endDate') || ''
 
     // 2. 5대 자산군 투자성과 분석
-    const { data: returnRows, error } = await supabase
-      .from('return')
-      .select('*')
-      .order('기준일', { ascending: true })
+    const { data: returnRows, error } = await fetchAll(supabase, 'return', '기준일')
 
     if (error) throw error
 

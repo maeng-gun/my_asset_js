@@ -1,12 +1,13 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 
 export async function getTickers(type: '투자자산' | '연금자산') {
   const supabase = createAdminClient()
   const table = type === '투자자산' ? 'assets' : 'pension'
   
-  const { data, error } = await supabase.from(table).select('*').order('행번호', { ascending: true })
+  const { data, error } = await fetchAll(supabase, table, '행번호')
   if (error) throw new Error(`[getTickers] ${error.message}`)
   
   return data || []
@@ -37,7 +38,7 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
 
 export async function getCategories() {
   const supabase = createAdminClient()
-  const { data, error } = await supabase.from('categories').select('*')
+  const { data, error } = await fetchAll(supabase, 'categories')
   
   if (error) throw new Error(`[getCategories] ${error.message}`)
   return data || []
@@ -87,10 +88,7 @@ export async function getLatestPortfolioSummary() {
 
 export async function getReturnData() {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('return')
-    .select('*')
-    .order('기준일', { ascending: true })
+  const { data, error } = await fetchAll(supabase, 'return', '기준일')
 
   if (error) throw new Error(`[getReturnData] ${error.message}`)
   return data || []
@@ -98,10 +96,7 @@ export async function getReturnData() {
 
 export async function getInflowList() {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('inflow')
-    .select('*')
-    .order('거래일자', { ascending: true })
+  const { data, error } = await fetchAll(supabase, 'inflow', '거래일자')
 
   if (error) throw new Error(`[getInflowList] ${error.message}`)
   return data || []
@@ -148,10 +143,7 @@ export async function deleteInflowRecord(id: number) {
 
 export async function getAlloTableRows() {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('allo_table')
-    .select('*')
-    .order('행번호', { ascending: true })
+  const { data, error } = await fetchAll(supabase, 'allo_table', '행번호')
 
   if (error) throw new Error(`[getAlloTableRows] ${error.message}`)
   return data || []

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 
 export async function POST() {
   try {
@@ -20,7 +21,7 @@ export async function POST() {
     }
 
     // 2. assets 테이블 갱신
-    const { data: assets } = await supabase.from('assets').select('*')
+    const { data: assets } = await fetchAll(supabase, 'assets')
     if (assets) {
       for (const a of (assets as any[])) {
         const key = `${a.계좌}_${a.종목코드}`
@@ -33,7 +34,7 @@ export async function POST() {
     }
 
     // 3. pension 테이블 갱신
-    const { data: pension } = await supabase.from('pension').select('*')
+    const { data: pension } = await fetchAll(supabase, 'pension')
     if (pension) {
       for (const p of (pension as any[])) {
         const key = `${p.계좌}_${p.종목코드}`

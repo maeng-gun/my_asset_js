@@ -13,6 +13,8 @@ import { computeTotalProfit, computeProfitVariation } from './analytics'
 import { AssetMaster, DailyTradeRaw, LatestPortfolioSummary } from './types'
 import { format } from 'date-fns'
 
+import { fetchAll } from '@/lib/supabase/utils'
+
 export async function runPortfolioValuation(): Promise<{
   success: boolean
   today: string
@@ -31,11 +33,11 @@ export async function runPortfolioValuation(): Promise<{
     { data: pensionDailyRaw, error: pensionDailyErr },
     { data: groupsRaw, error: groupsErr },
   ] = await Promise.all([
-    supabase.from('assets').select('*').order('행번호', { ascending: true }),
-    supabase.from('pension').select('*').order('행번호', { ascending: true }),
-    supabase.from('assets_daily').select('*').order('행번호', { ascending: true }),
-    supabase.from('pension_daily').select('*').order('행번호', { ascending: true }),
-    supabase.from('groups').select('*'),
+    fetchAll(supabase, 'assets', '행번호'),
+    fetchAll(supabase, 'pension', '행번호'),
+    fetchAll(supabase, 'assets_daily', '행번호'),
+    fetchAll(supabase, 'pension_daily', '행번호'),
+    fetchAll(supabase, 'groups'),
   ])
 
   // Fail-fast 방어 로직: DB 접근 실패 시 스냅샷 빈 데이터 덮어쓰기 방지
@@ -204,8 +206,8 @@ export async function runPortfolioValuation(): Promise<{
 
   // 10. 종합손익 및 손익변동 계산
   const [{ data: evalProfitRows }, { data: returnAllRows }] = await Promise.all([
-    supabase.from('eval_profit').select('*'),
-    supabase.from('return').select('*').order('기준일', { ascending: true }),
+    fetchAll(supabase, 'eval_profit'),
+    fetchAll(supabase, 'return', '기준일'),
   ])
 
   // 연도별 장부금액 및 평잔 요약

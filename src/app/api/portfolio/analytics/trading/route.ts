@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 import { calcTotalTrading } from '@/lib/engine/analytics'
 
 export async function GET(req: NextRequest) {
@@ -16,10 +17,10 @@ export async function GET(req: NextRequest) {
       { data: assetsDaily },
       { data: pensionDaily },
     ] = await Promise.all([
-      supabase.from('assets').select('*'),
-      supabase.from('pension').select('*'),
-      supabase.from('assets_daily').select('*'),
-      supabase.from('pension_daily').select('*'),
+      fetchAll(supabase, 'assets'),
+      fetchAll(supabase, 'pension'),
+      fetchAll(supabase, 'assets_daily'),
+      fetchAll(supabase, 'pension_daily'),
     ])
 
     const totalTrades = calcTotalTrading(

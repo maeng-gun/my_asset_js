@@ -25,7 +25,12 @@ export function getDailyTrading(
   // 거래내역을 맵으로 구성 (계좌_종목코드_거래일자)
   const tradeMap = new Map<string, DailyTradeRaw>()
   for (const t of tradeRaw) {
-    const dateStr = t.거래일자 ? t.거래일자.substring(0, 10) : ''
+    let dateStr = ''
+    if (t.거래일자) {
+      const dbDate = new Date(t.거래일자)
+      const kstDate = new Date(dbDate.getTime() + 9 * 60 * 60 * 1000)
+      dateStr = kstDate.toISOString().substring(0, 10)
+    }
     const key = `${t.계좌}_${t.종목코드}_${dateStr}`
     if (tradeMap.has(key)) {
       const existing = tradeMap.get(key)!

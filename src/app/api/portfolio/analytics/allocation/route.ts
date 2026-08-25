@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,10 +9,7 @@ export async function GET(req: NextRequest) {
     const baseMonth = searchParams.get('baseMonth') || '2024-05'
 
     // allo_table 조회
-    const { data: alloRows } = await supabase
-      .from('allo_table')
-      .select('*')
-      .order('행번호', { ascending: true })
+    const { data: alloRows } = await fetchAll(supabase, 'allo_table', '행번호')
 
     const saaRow = (alloRows || []).find((r) => r.구분 === 'SAA') || {
       국내주식: 0.1,

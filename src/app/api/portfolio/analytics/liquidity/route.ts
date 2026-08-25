@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/utils'
 import {
   calcEvalTrendData,
   calcMaturityAnalysis,
@@ -18,11 +19,11 @@ export async function GET(req: NextRequest) {
       { data: assetsMaster },
       { data: pensionMaster },
     ] = await Promise.all([
-      supabase.from('return').select('*').order('기준일', { ascending: true }),
-      supabase.from('inflow').select('*').order('거래일자', { ascending: true }),
+      fetchAll(supabase, 'return', '기준일'),
+      fetchAll(supabase, 'inflow', '거래일자'),
       supabase.from('latest_portfolio_summary').select('*').eq('id', 'latest').single(),
-      supabase.from('assets').select('*'),
-      supabase.from('pension').select('*'),
+      fetchAll(supabase, 'assets'),
+      fetchAll(supabase, 'pension'),
     ])
 
     const tComm2 = (summaryRow?.t_comm2 || []) as any[]
