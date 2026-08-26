@@ -16,24 +16,94 @@ export async function getTickers(type: '투자자산' | '연금자산') {
 export async function getTradeHistory(type: '투자자산' | '연금자산', account: string, currency: string, limitCount: number = 30) {
   const supabase = createAdminClient()
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
+  const masterTable = type === '투자자산' ? 'assets' : 'pension'
   
-  let query = supabase
-    .from(dailyTable)
-    .select('*')
-    .eq('계좌', account)
-    
-  if (currency && currency !== '전체') {
-    // If you need currency filtering, you might need a join or if '통화' is in dailyTable. 
-    // Usually dailyTable only has 종목코드, we'll just filter by account for now as per original code.
-  }
-
-  const { data, error } = await query
-    .order('거래일자', { ascending: false })
-    .order('행번호', { ascending: false })
-    .limit(limitCount)
-
+  const { data: masterData } = await fetchAll(supabase, masterTable)
+  
+  const { data: dailyData, error } = await fetchAll(supabase, dailyTable)
   if (error) throw new Error(`[getTradeHistory] ${error.message}`)
-  return data || []
+  
+  // Calculate in JS
+  let filtered = (dailyData || []).filter((d: any) => d['계좌'] === account)
+  
+  // Join with master to get currency and itemName
+  const masterMap = new Map()
+  if (masterData) {
+    for (const m of masterData) {
+      masterMap.set(m['계좌'] + '_' + m['종목코드'], { name: m['종목명'], cur: m['통화'] })
+    }
+  }
+  
+  filtered = filtered.map((d: any) => {
+    const meta = masterMap.get(d['계좌'] + '_' + d['종목코드'])
+    return { ...d, '종목명': meta?.name || d['종목코드'], '통화': meta?.cur || '원화' }
+  })
+  
+  if (currency && currency !== '전체') {
+    filtered = filtered.filter((d: any) => d['통화'] === currency)
+  }
+  
+  // Sort ascending by date and row number to calculate cumsum
+  filtered.sort((a: any, b: any) => {
+    if (a['거래일자'] !== b['거래일자']) {
+      return a['거래일자'] > b['거래일자'] ? 1 : -1
+    }
+    return (a['행번호'] || 0) - (b['행번호'] || 0)
+  })
+  
+  let currentBalance = 0
+  const computed = filtered.map((d: any) => {
+    const buyPrincipal = d['매입액'] || 0
+    const cashOut = d['현금지출'] || 0
+    const buyCost = cashOut - buyPrincipal
+    
+    const sellPrincipal = d['매도원금'] || 0
+    const sellAmt = d['매도액'] || 0
+    const tradeProfit = sellAmt - sellPrincipal
+    
+    const dividend = d['이자배당액'] || 0
+    const cashIn = d['현금수입'] || 0
+    const sellCost = sellAmt + dividend - cashIn
+    
+    const netProfit = tradeProfit + dividend - sellCost - buyCost
+    const inOut = d['입출금'] || 0
+    const netCashIn = inOut + cashIn - cashOut
+    
+    currentBalance += netCashIn
+    
+    return {
+      행번호: d['행번호'],
+      계좌: d['계좌'],
+      통화: d['통화'],
+      거래일자: d['거래일자'],
+      종목명: d['종목명'],
+      종목코드: d['종목코드'],
+      매입수량: d['매입수량'],
+      매입액: buyPrincipal,
+      현금지출: cashOut,
+      매입비용: buyCost,
+      매도수량: d['매도수량'],
+      매도원금: sellPrincipal,
+      매도액: sellAmt,
+      매매수익: tradeProfit,
+      이자배당액: dividend,
+      현금수입: cashIn,
+      매도비용: sellCost,
+      순수익: netProfit,
+      입출금: inOut,
+      잔액: currentBalance
+    }
+  })
+  
+  // Sort descending and limit
+  computed.sort((a: any, b: any) => {
+    if (a['거래일자'] !== b['거래일자']) {
+      return a['거래일자'] < b['거래일자'] ? 1 : -1
+    }
+    return (b['행번호'] || 0) - (a['행번호'] || 0)
+  })
+  
+  return computed.slice(0, limitCount)
 }
 
 export async function getCategories() {

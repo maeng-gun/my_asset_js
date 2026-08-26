@@ -189,56 +189,37 @@ export function Navbar() {
             </nav>
           </div>
 
-          {/* 우측 글로벌 액션 버튼 (드롭다운) */}
-          <div className="hidden sm:flex items-center gap-2 relative actions-dropdown">
+          {/* 우측 글로벌 액션 버튼 (인라인) */}
+          <div className="hidden sm:flex items-center gap-3">
             <button
-              onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
-              className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition"
-              title="추가 작업"
+              onClick={() => handleReval(false)}
+              disabled={isRevaluing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition"
             >
-              <MoreVertical className="w-5 h-5" />
+              <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
+              평가금액 재계산
             </button>
-            {actionsMenuOpen && (
-              <div className="absolute right-0 top-12 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50">
-                <button
-                  onClick={() => { handleReval(false); setActionsMenuOpen(false); }}
-                  disabled={isRevaluing}
-                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 transition"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
-                  평가금액 재계산
-                </button>
-                <button
-                  onClick={() => { handleRenewEval(); setActionsMenuOpen(false); }}
-                  disabled={isRenewing}
-                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-200 transition"
-                >
-                  <RotateCcw className={`w-4 h-4 ${isRenewing ? 'animate-spin' : ''}`} />
-                  기초손익 갱신
-                </button>
-                <div className="h-px w-full bg-slate-800 my-1"></div>
-                <button
-                  onClick={() => { handleExit(); setActionsMenuOpen(false); }}
-                  disabled={isExiting}
-                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-rose-900/40 text-rose-400 transition"
-                >
-                  <Power className="w-4 h-4" />
-                  나가기
-                </button>
-              </div>
-            )}
+            <button
+              onClick={handleRenewEval}
+              disabled={isRenewing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-300 transition"
+            >
+              <RotateCcw className={`w-4 h-4 ${isRenewing ? 'animate-spin' : ''}`} />
+              기초손익 갱신
+            </button>
+            <button
+              onClick={handleExit}
+              disabled={isExiting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-rose-900/40 text-rose-400 transition"
+            >
+              <Power className="w-4 h-4" />
+              나가기
+            </button>
           </div>
 
           {/* 모바일 햄버거 버튼 */}
           <div className="flex lg:hidden items-center gap-2">
-            <button
-              onClick={() => handleReval(false)}
-              disabled={isRevaluing}
-              className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
-              title="평가금액 재계산"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
-            </button>
+            
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition"
@@ -271,7 +252,16 @@ export function Navbar() {
               </Link>
             )
           })}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+          <div className="pt-3 border-t border-slate-800 flex flex-col gap-2">
+              <button
+                onClick={() => handleReval(false)}
+                disabled={isRevaluing}
+                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-2 py-2 px-4 bg-emerald-500/10 rounded-lg transition"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
+                평가금액 재계산
+              </button>
+              <div className="flex items-center justify-between px-2">
             <button
               onClick={handleRenewEval}
               className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 py-1.5"
@@ -287,6 +277,7 @@ export function Navbar() {
               서버 종료 및 나가기
             </button>
           </div>
+        </div>
         </div>
       )}
     </header>

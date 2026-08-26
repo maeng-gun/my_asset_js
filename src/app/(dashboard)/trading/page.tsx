@@ -54,13 +54,13 @@ export default function TradingPage() {
     setSelectedRowId(r.행번호)
     setTradeDate(r.거래일자?.substring(0, 10))
     setBuyQ(r.매입수량 || 0)
-    setBuyAmt(r.매입금 || 0)
-    setBuyCash(r.출금지불 || 0)
+    setBuyAmt(r.매입액 || 0)
+    setBuyCash(r.현금지출 || 0)
     setSellQ(r.매도수량 || 0)
     setSellPrincipal(r.매도원금 || 0)
-    setSellAmt(r.매도금 || 0)
-    setDividend(r.이자배당금 || 0)
-    setCashIn(r.입금수입 || 0)
+    setSellAmt(r.매도액 || 0)
+    setDividend(r.이자배당액 || 0)
+    setCashIn(r.현금수입 || 0)
     setInOut(r.입출금 || 0)
     
     // Select ticker by code. It relies on tickersData containing the ticker.
@@ -162,13 +162,13 @@ export default function TradingPage() {
         종목코드: selectedTicker,
         거래일자: tradeDate,
         매입수량: buyQ,
-        매입금: buyAmt,
-        출금지불: buyCash,
+        매입액: buyAmt,
+        현금지출: buyCash,
         매도수량: sellQ,
         매도원금: sellPrincipal,
-        매도금: sellAmt,
-        이자배당금: dividend,
-        입금수입: cashIn,
+        매도액: sellAmt,
+        이자배당액: dividend,
+        현금수입: cashIn,
         입출금: inOut,
       }
       await updateTrade(tradeType, selectedRowId, updateRecord)
@@ -437,15 +437,15 @@ const deleteTradeMutation = useMutation({
   <th className="py-3 px-3">거래일자</th>
   <th className="py-3 px-3">종목명</th>
   <th className="py-3 px-3 text-right">매입수량</th>
-  <th className="py-3 px-3 text-right">매입금</th>
-  <th className="py-3 px-3 text-right">출금지불</th>
+  <th className="py-3 px-3 text-right">매입액</th>
+  <th className="py-3 px-3 text-right">현금지출</th>
   <th className="py-3 px-3 text-right text-rose-300">매입비용</th>
   <th className="py-3 px-3 text-right">매도수량</th>
   <th className="py-3 px-3 text-right">매도원금</th>
-  <th className="py-3 px-3 text-right">매도금</th>
+  <th className="py-3 px-3 text-right">매도액</th>
   <th className="py-3 px-3 text-right text-emerald-300">매매수익</th>
-  <th className="py-3 px-3 text-right">이자배당</th>
-  <th className="py-3 px-3 text-right">입금수입</th>
+  <th className="py-3 px-3 text-right">이자배당액</th>
+  <th className="py-3 px-3 text-right">현금수입</th>
   <th className="py-3 px-3 text-right text-rose-300">매도비용</th>
   <th className="py-3 px-3 text-right font-bold text-emerald-400">순수익</th>
   <th className="py-3 px-3 text-right">입출금</th>
@@ -459,7 +459,7 @@ const deleteTradeMutation = useMutation({
                     return (
                       <tr
                         key={r.행번호}
-                        onClick={() => setSelectedRowId(isSelected ? null : r.행번호)}
+                        
                         className={`cursor-pointer transition ${
                           isSelected ? 'bg-emerald-500/20 border-l-4 border-l-emerald-500' : 'hover:bg-slate-800/40'
                         }`}
@@ -469,15 +469,15 @@ const deleteTradeMutation = useMutation({
   <td className="py-2.5 px-3 text-slate-200 font-sans">{r.거래일자?.substring(0, 10)}</td>
   <td className="py-2.5 px-3 font-medium text-emerald-400">{r.종목명}</td>
   <td className="py-2.5 px-3 text-right">{r.매입수량}</td>
-  <td className="py-2.5 px-3 text-right">{formatKRW(r.매입금)}</td>
-  <td className="py-2.5 px-3 text-right">{formatKRW(r.출금지불)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.매입액)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.현금지출)}</td>
   <td className="py-2.5 px-3 text-right text-rose-300">{formatKRW(r.매입비용)}</td>
   <td className="py-2.5 px-3 text-right">{r.매도수량}</td>
   <td className="py-2.5 px-3 text-right">{formatKRW(r.매도원금)}</td>
-  <td className="py-2.5 px-3 text-right">{formatKRW(r.매도금)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.매도액)}</td>
   <td className="py-2.5 px-3 text-right text-emerald-300">{formatKRW(r.매매수익)}</td>
-  <td className="py-2.5 px-3 text-right">{formatKRW(r.이자배당금)}</td>
-  <td className="py-2.5 px-3 text-right">{formatKRW(r.입금수입)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.이자배당액)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.현금수입)}</td>
   <td className="py-2.5 px-3 text-right text-rose-300">{formatKRW(r.매도비용)}</td>
   <td className="py-2.5 px-3 text-right font-bold text-emerald-400">{formatKRW(r.순수익)}</td>
   <td className="py-2.5 px-3 text-right">{formatKRW(r.입출금)}</td>
@@ -511,6 +511,12 @@ const deleteTradeMutation = useMutation({
       )}
 
       {/* 탭 4: 종합거래내역 (단가 연산 및 기간별 전체 거래 집계) */}
+      {/* 탭2: 투자종목 관리 */}
+      {activeTab === 'asset' && <AssetSettings />}
+
+      {/* 탭3: 구분항목 관리 */}
+      {activeTab === 'group' && <GroupSettings />}
+
       {activeTab === 'total' && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs">
