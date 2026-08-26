@@ -108,7 +108,9 @@ export default function AllocationStrategyPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 11 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '비중(%)',
       nameTextStyle: { color: '#94a3b8' },
@@ -116,6 +118,16 @@ export default function AllocationStrategyPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '비중(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: '현재 포트폴리오 비중',

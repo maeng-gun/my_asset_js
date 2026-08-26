@@ -116,12 +116,22 @@ export default function ProfitPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       axisLine: { lineStyle: { color: '#334155' } },
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
+    {
+      position: "right",
+      type: 'value',
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+    }
+  ],
     series: [
       {
         name: '손익누계',

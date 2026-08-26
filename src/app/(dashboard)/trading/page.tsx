@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
-import { getTickers, getTradeHistory, getCategories, addTrade, deleteTrade } from '@/lib/actions/db'
+import AssetSettings from './AssetSettings'
+import GroupSettings from './GroupSettings'
+import { getTickers, getTradeHistory, getCategories, addTrade, updateTrade, deleteTrade } from '@/lib/actions/db'
 import { formatKRW } from '@/lib/utils'
 import { toast } from 'sonner'
 import { subMonths, format } from 'date-fns'
@@ -21,6 +23,8 @@ import {
 
 const TABS: TabItem[] = [
   { id: 'history', label: '거래내역', icon: Receipt },
+  { id: 'asset', label: '투자종목 관리', icon: Tag },
+  { id: 'group', label: '구분항목 관리', icon: Tag },
   { id: 'total', label: '종합거래내역', icon: ListFilter },
 ]
 
@@ -45,10 +49,30 @@ export default function TradingPage() {
   const [inOut, setInOut] = useState(0)
   const [limitCount, setLimitCount] = useState(30)
   const [selectedRowId, setSelectedRowId] = useState<number | null>(null)
+  
+  const setEditMode = (r: any) => {
+    setSelectedRowId(r.행번호)
+    setTradeDate(r.거래일자?.substring(0, 10))
+    setBuyQ(r.매입수량 || 0)
+    setBuyAmt(r.매입금 || 0)
+    setBuyCash(r.출금지불 || 0)
+    setSellQ(r.매도수량 || 0)
+    setSellPrincipal(r.매도원금 || 0)
+    setSellAmt(r.매도금 || 0)
+    setDividend(r.이자배당금 || 0)
+    setCashIn(r.입금수입 || 0)
+    setInOut(r.입출금 || 0)
+    
+    // Select ticker by code. It relies on tickersData containing the ticker.
+    setSelectedTicker(r.종목코드)
+    setAccount(r.계좌)
+    setCurrency(r.통화)
+  }
 
   // 종합거래내역 기간 필터 상태
   const [totalStartDate, setTotalStartDate] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'))
   const [totalEndDate, setTotalEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [totalAssetClass, setTotalAssetClass] = useState('전체')
 
   // 2. 종목 마스터 쿼리
   const { data: tickersData } = useQuery({
@@ -75,11 +99,11 @@ export default function TradingPage() {
   })
 
   // 5. 종합거래내역 API 쿼리 (단가 및 계층분류 집계)
-  const { data: totalTradesData } = useQuery({
-    queryKey: ['total-trades', totalStartDate, totalEndDate],
+  const { data: totalTradesData, isLoading: isLoadingTotal } = useQuery({
+    queryKey: ['total-trades', totalStartDate, totalEndDate, totalAssetClass],
     queryFn: async () => {
       const res = await fetch(
-        `/api/portfolio/analytics/trading?startDate=${totalStartDate}&endDate=${totalEndDate}`
+        `/api/portfolio/analytics/trading?startDate=${totalStartDate}&endDate=${totalEndDate}&assetClass=${totalAssetClass}`
       )
       if (!res.ok) throw new Error('종합거래내역 조회 실패')
       const json = await res.json()
@@ -129,7 +153,40 @@ export default function TradingPage() {
   })
 
   // 거래내역 삭제 Mutation
-  const deleteTradeMutation = useMutation({
+  
+  const updateTradeMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedRowId) return
+      const updateRecord = {
+        계좌: account,
+        종목코드: selectedTicker,
+        거래일자: tradeDate,
+        매입수량: buyQ,
+        매입금: buyAmt,
+        출금지불: buyCash,
+        매도수량: sellQ,
+        매도원금: sellPrincipal,
+        매도금: sellAmt,
+        이자배당금: dividend,
+        입금수입: cashIn,
+        입출금: inOut,
+      }
+      await updateTrade(tradeType, selectedRowId, updateRecord)
+    },
+    onSuccess: () => {
+      toast.success('거래내역이 수정되었습니다.')
+      queryClient.invalidateQueries({ queryKey: ['trade-history'] })
+      queryClient.invalidateQueries({ queryKey: ['total-trades'] })
+      setSelectedRowId(null)
+      setBuyQ(0); setBuyAmt(0); setBuyCash(0); setSellQ(0); setSellPrincipal(0); setSellAmt(0); setDividend(0); setCashIn(0); setInOut(0);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : '수정 실패'
+      toast.error(`수정 오류: ${msg}`)
+    },
+  })
+
+const deleteTradeMutation = useMutation({
     mutationFn: async (id: number) => {
       await deleteTrade(tradeType, id)
     },
@@ -334,25 +391,37 @@ export default function TradingPage() {
 
               {/* 액션 버튼 */}
               <div className="flex items-center justify-center gap-3 mt-5 pt-4 border-t border-slate-800">
-                <button
-                  onClick={() => addTradeMutation.mutate()}
-                  disabled={!selectedTicker || addTradeMutation.isPending}
-                  className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  거래 추가
-                </button>
-                {selectedRowId && (
-                  <button
-                    onClick={() => deleteTradeMutation.mutate(selectedRowId)}
-                    disabled={deleteTradeMutation.isPending}
-                    className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition disabled:opacity-50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    선택 삭제 (No.{selectedRowId})
-                  </button>
-                )}
-              </div>
+    {selectedRowId ? (
+      <>
+        <button
+          onClick={() => updateTradeMutation.mutate()}
+          disabled={!selectedTicker || updateTradeMutation.isPending}
+          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
+        >
+          <Edit2 className="w-4 h-4" />
+          수정 저장 (No.{selectedRowId})
+        </button>
+        <button
+          onClick={() => {
+            setSelectedRowId(null)
+            setBuyQ(0); setBuyAmt(0); setBuyCash(0); setSellQ(0); setSellPrincipal(0); setSellAmt(0); setDividend(0); setCashIn(0); setInOut(0);
+          }}
+          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-slate-700 hover:bg-slate-600 active:scale-95 text-white transition"
+        >
+          취소
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={() => addTradeMutation.mutate()}
+        disabled={!selectedTicker || addTradeMutation.isPending}
+        className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
+      >
+        <PlusCircle className="w-4 h-4" />
+        거래 추가
+      </button>
+    )}
+  </div>
             </CardBody>
           </Card>
 
@@ -364,17 +433,24 @@ export default function TradingPage() {
                 <thead>
                   <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-3 text-center">행번호</th>
-                    <th className="py-3 px-3">거래일자</th>
-                    <th className="py-3 px-3">종목코드</th>
-                    <th className="py-3 px-3 text-right">매입수량</th>
-                    <th className="py-3 px-3 text-right">매입액</th>
-                    <th className="py-3 px-3 text-right">현금지출</th>
-                    <th className="py-3 px-3 text-right">매도수량</th>
-                    <th className="py-3 px-3 text-right">매도원금</th>
-                    <th className="py-3 px-3 text-right">매도액</th>
-                    <th className="py-3 px-3 text-right">이자배당</th>
-                    <th className="py-3 px-3 text-right">현금수입</th>
-                    <th className="py-3 px-3 text-right">입출금</th>
+  <th className="py-3 px-3">계좌</th>
+  <th className="py-3 px-3">거래일자</th>
+  <th className="py-3 px-3">종목명</th>
+  <th className="py-3 px-3 text-right">매입수량</th>
+  <th className="py-3 px-3 text-right">매입금</th>
+  <th className="py-3 px-3 text-right">출금지불</th>
+  <th className="py-3 px-3 text-right text-rose-300">매입비용</th>
+  <th className="py-3 px-3 text-right">매도수량</th>
+  <th className="py-3 px-3 text-right">매도원금</th>
+  <th className="py-3 px-3 text-right">매도금</th>
+  <th className="py-3 px-3 text-right text-emerald-300">매매수익</th>
+  <th className="py-3 px-3 text-right">이자배당</th>
+  <th className="py-3 px-3 text-right">입금수입</th>
+  <th className="py-3 px-3 text-right text-rose-300">매도비용</th>
+  <th className="py-3 px-3 text-right font-bold text-emerald-400">순수익</th>
+  <th className="py-3 px-3 text-right">입출금</th>
+  <th className="py-3 px-3 text-right font-bold text-slate-200">잔액</th>
+  <th className="py-3 px-3 text-center">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -389,17 +465,41 @@ export default function TradingPage() {
                         }`}
                       >
                         <td className="py-2.5 px-3 text-center text-slate-500">{r.행번호}</td>
-                        <td className="py-2.5 px-3 text-slate-200 font-sans">{r.거래일자?.substring(0, 10)}</td>
-                        <td className="py-2.5 px-3 font-medium text-emerald-400">{r.종목코드}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매입수량)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매입액)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.현금지출)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매도수량)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매도원금)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매도액)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.이자배당액)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.현금수입)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.입출금)}</td>
+  <td className="py-2.5 px-3 text-slate-400">{r.계좌}</td>
+  <td className="py-2.5 px-3 text-slate-200 font-sans">{r.거래일자?.substring(0, 10)}</td>
+  <td className="py-2.5 px-3 font-medium text-emerald-400">{r.종목명}</td>
+  <td className="py-2.5 px-3 text-right">{r.매입수량}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.매입금)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.출금지불)}</td>
+  <td className="py-2.5 px-3 text-right text-rose-300">{formatKRW(r.매입비용)}</td>
+  <td className="py-2.5 px-3 text-right">{r.매도수량}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.매도원금)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.매도금)}</td>
+  <td className="py-2.5 px-3 text-right text-emerald-300">{formatKRW(r.매매수익)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.이자배당금)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.입금수입)}</td>
+  <td className="py-2.5 px-3 text-right text-rose-300">{formatKRW(r.매도비용)}</td>
+  <td className="py-2.5 px-3 text-right font-bold text-emerald-400">{formatKRW(r.순수익)}</td>
+  <td className="py-2.5 px-3 text-right">{formatKRW(r.입출금)}</td>
+  <td className="py-2.5 px-3 text-right font-bold text-slate-200">{formatKRW(r.잔액)}</td>
+  <td className="py-2.5 px-3 text-center">
+    <div className="flex items-center justify-center gap-2">
+      <button 
+        onClick={(e) => { e.stopPropagation(); setEditMode(r); }}
+        className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-emerald-600/20 hover:text-emerald-400 transition"
+        title="수정"
+      >
+        <Edit2 className="w-4 h-4" />
+      </button>
+      <button 
+        onClick={(e) => { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) deleteTradeMutation.mutate(r.행번호); }}
+        className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-600/20 hover:text-rose-400 transition"
+        title="삭제"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  </td>
                       </tr>
                     )
                   })}
@@ -414,22 +514,36 @@ export default function TradingPage() {
       {activeTab === 'total' && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span className="text-slate-300 font-medium">조회 기간:</span>
-              <input
-                type="date"
-                value={totalStartDate}
-                onChange={(e) => setTotalStartDate(e.target.value)}
-                className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
-              />
-              <span className="text-slate-500">~</span>
-              <input
-                type="date"
-                value={totalEndDate}
-                onChange={(e) => setTotalEndDate(e.target.value)}
-                className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300 font-medium">조회 기간:</span>
+                <input
+                  type="date"
+                  value={totalStartDate}
+                  onChange={(e) => setTotalStartDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                />
+                <span className="text-slate-500">~</span>
+                <input
+                  type="date"
+                  value={totalEndDate}
+                  onChange={(e) => setTotalEndDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                />
+              </div>
+              <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
+                <span className="text-slate-300 font-medium">자산 구분:</span>
+                <select
+                  value={totalAssetClass}
+                  onChange={(e) => setTotalAssetClass(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 min-w-[120px]"
+                >
+                  {['전체', '주식', '대체자산', '채권', '현금성'].map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-1.5">

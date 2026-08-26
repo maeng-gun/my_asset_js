@@ -203,3 +203,14 @@ export async function deleteCategory(key: string, value: string) {
   if (error) throw new Error(`[deleteCategory] ${error.message}`)
   return true
 }
+
+export async function updateTrade(type: '투자자산' | '연금자산', id: number, record: any) {
+  const supabase = createAdminClient()
+  const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
+  const { error } = await supabase
+    .from(dailyTable)
+    .update(record)
+    .eq('행번호', id)
+    
+  if (error) throw new Error(`[updateTrade] ${error.message}`)
+}

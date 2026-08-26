@@ -87,7 +87,9 @@ export default function InvestmentStrategyPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '수익률(%)',
       nameTextStyle: { color: '#94a3b8' },
@@ -95,6 +97,16 @@ export default function InvestmentStrategyPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '수익률(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: 'MyPF 누적수익률',
@@ -132,7 +144,9 @@ export default function InvestmentStrategyPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '낙폭(%)',
       nameTextStyle: { color: '#94a3b8' },
@@ -140,6 +154,16 @@ export default function InvestmentStrategyPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '낙폭(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: 'Drawdown (DD)',
@@ -186,7 +210,9 @@ export default function InvestmentStrategyPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '수익률(%)',
       nameTextStyle: { color: '#94a3b8' },
@@ -194,6 +220,16 @@ export default function InvestmentStrategyPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '수익률(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: `${activeSearchTicker} 누적수익률`,
@@ -230,7 +266,9 @@ export default function InvestmentStrategyPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '낙폭(%)',
       nameTextStyle: { color: '#94a3b8' },
@@ -238,6 +276,16 @@ export default function InvestmentStrategyPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '낙폭(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: 'Drawdown (DD)',

@@ -163,7 +163,9 @@ export default function LiquidityPage() {
       axisLine: { lineStyle: { color: '#334155' } },
       axisLabel: { color: '#94a3b8', fontSize: 10 },
     },
-    yAxis: {
+    yAxis: [
+    {
+      position: "left",
       type: 'value',
       name: '금액(만원)',
       nameTextStyle: { color: '#94a3b8' },
@@ -171,6 +173,16 @@ export default function LiquidityPage() {
       splitLine: { lineStyle: { color: '#1e293b' } },
       axisLabel: { color: '#94a3b8' },
     },
+    {
+      position: "right",
+      type: 'value',
+      name: '금액(만원)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    }
+  ],
     series: [
       {
         name: '과거평가액',

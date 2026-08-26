@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   Tag,
+  MoreVertical,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -30,8 +31,7 @@ const NAV_ITEMS = [
   { name: '투자전략', href: '/strategy/investment', icon: Lightbulb },
   { name: '배분전략', href: '/strategy/allocation', icon: Layers },
   { name: '유동성 관리', href: '/liquidity', icon: Activity },
-  { name: '설정', href: '/settings/asset', icon: Tag },
-]
+  ]
 
 export function Navbar() {
   const pathname = usePathname()
@@ -39,6 +39,18 @@ export function Navbar() {
   const supabase = createClient()
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.actions-dropdown')) {
+        setActionsMenuOpen(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
   const [isRevaluing, setIsRevaluing] = useState(false)
   const [isRenewing, setIsRenewing] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
@@ -141,7 +153,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-800 text-slate-100 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* 로고 및 앱 타이틀 */}
           <div className="flex items-center gap-3">
@@ -163,7 +175,7 @@ export function Navbar() {
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition duration-150 ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition duration-150 whitespace-nowrap ${
                       isActive
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm'
                         : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
@@ -177,35 +189,44 @@ export function Navbar() {
             </nav>
           </div>
 
-          {/* 우측 글로벌 액션 버튼 */}
-          <div className="hidden sm:flex items-center gap-2">
+          {/* 우측 글로벌 액션 버튼 (드롭다운) */}
+          <div className="hidden sm:flex items-center gap-2 relative actions-dropdown">
             <button
-              onClick={() => handleReval(false)}
-              disabled={isRevaluing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition shadow-sm disabled:opacity-50"
+              onClick={() => setActionsMenuOpen(!actionsMenuOpen)}
+              className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition"
+              title="추가 작업"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRevaluing ? 'animate-spin' : ''}`} />
-              평가금액 재계산
+              <MoreVertical className="w-5 h-5" />
             </button>
-
-            <button
-              onClick={handleRenewEval}
-              disabled={isRenewing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition disabled:opacity-50"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 ${isRenewing ? 'animate-spin' : ''}`} />
-              기초손익 갱신
-            </button>
-
-            <button
-              onClick={handleExit}
-              disabled={isExiting}
-              title="서버 종료 및 나가기"
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 transition active:scale-95 disabled:opacity-50"
-            >
-              <Power className="w-3.5 h-3.5" />
-              나가기
-            </button>
+            {actionsMenuOpen && (
+              <div className="absolute right-0 top-12 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl p-2 flex flex-col gap-1 z-50">
+                <button
+                  onClick={() => { handleReval(false); setActionsMenuOpen(false); }}
+                  disabled={isRevaluing}
+                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 transition"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
+                  평가금액 재계산
+                </button>
+                <button
+                  onClick={() => { handleRenewEval(); setActionsMenuOpen(false); }}
+                  disabled={isRenewing}
+                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-200 transition"
+                >
+                  <RotateCcw className={`w-4 h-4 ${isRenewing ? 'animate-spin' : ''}`} />
+                  기초손익 갱신
+                </button>
+                <div className="h-px w-full bg-slate-800 my-1"></div>
+                <button
+                  onClick={() => { handleExit(); setActionsMenuOpen(false); }}
+                  disabled={isExiting}
+                  className="flex items-center justify-start gap-2 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-rose-900/40 text-rose-400 transition"
+                >
+                  <Power className="w-4 h-4" />
+                  나가기
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 모바일 햄버거 버튼 */}

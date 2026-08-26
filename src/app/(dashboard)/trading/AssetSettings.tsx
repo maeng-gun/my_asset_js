@@ -229,7 +229,11 @@ export default function AssetSettingsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {(tickersData || []).map((t: any) => (
+              {(() => {
+                let displayed = tickersData || []
+                if (account) displayed = displayed.filter((t: any) => t.계좌 === account)
+                return displayed
+              })().map((t: any) => (
                 <tr key={t.행번호} className="hover:bg-slate-800/40 transition">
                   <td className="py-2.5 px-4 text-center text-slate-500">{t.행번호}</td>
                   <td className="py-2.5 px-4 font-semibold text-slate-200">{t.계좌}</td>
