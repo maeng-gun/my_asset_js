@@ -658,9 +658,14 @@ export default function ProfitPage() {
                   <th className="py-3 px-3">통화</th>
                   <th className="py-3 px-3 text-right">보유수량</th>
                   <th className="py-3 px-3 text-right">장부금액</th>
+                  <th className="py-3 px-3 text-right">평잔</th>
                   <th className="py-3 px-3 text-right">평가금액</th>
                   <th className="py-3 px-3 text-right">평가손익</th>
                   <th className="py-3 px-3 text-right">실현손익</th>
+                  <th className="py-3 px-3 text-right">평가손익증감</th>
+                  <th className="py-3 px-3 text-right">비용률</th>
+                  <th className="py-3 px-3 text-right">실현수익률</th>
+                  <th className="py-3 px-3 text-right">평가증감률</th>
                   <th className="py-3 px-3 text-right font-bold text-slate-200 border-x border-slate-800 bg-slate-900/50">총손익</th>
                   <th className="py-3 px-3 text-right font-bold text-slate-200">총수익률</th>
                 </tr>
@@ -693,12 +698,23 @@ export default function ProfitPage() {
                       <td className="py-2.5 px-3 font-sans text-slate-400">{r.통화}</td>
                       <td className="py-2.5 px-3 text-right">{formatKRW(r.보유수량)}</td>
                       <td className="py-2.5 px-3 text-right">{formatKRW(r.장부금액)}</td>
+                      <td className="py-2.5 px-3 text-right">{formatKRW(r.평잔 || 0)}</td>
                       <td className="py-2.5 px-3 text-right text-slate-100 font-medium">{formatKRW(r.평가금액)}</td>
                       <td className={`py-2.5 px-3 text-right ${r.평가손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {formatKRW(r.평가손익)}
                       </td>
                       <td className={`py-2.5 px-3 text-right ${r.실현손익 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {formatKRW(r.실현손익)}
+                      </td>
+                      <td className={`py-2.5 px-3 text-right ${r.평가손익증감 >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatKRW(r.평가손익증감 || 0)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">{formatPercent(r.비용률 || 0)}</td>
+                      <td className={`py-2.5 px-3 text-right ${(r.실현수익률 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatPercent(r.실현수익률 || 0)}
+                      </td>
+                      <td className={`py-2.5 px-3 text-right ${(r.평가증감률 || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatPercent(r.평가증감률 || 0)}
                       </td>
                       <td
                         className={`py-2.5 px-3 text-right font-bold border-x border-slate-800 bg-slate-900/30 ${

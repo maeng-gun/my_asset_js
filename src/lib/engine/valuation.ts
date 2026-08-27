@@ -108,7 +108,14 @@ export function evaluateBalanceSheet(
 ): BalanceSheetRecord[] {
   const masterMap = new Map<string, AssetMaster>()
   for (const m of masterList) {
-    masterMap.set(`${m.계좌}_${m.종목코드}`, m)
+    const key = `${m.계좌}_${m.종목코드}`
+    const existing = masterMap.get(key)
+    if (existing && (existing.평가금액 || 0) > 0 && (!m.평가금액 || m.평가금액 === 0)) {
+      // R의 filter(평가금액 != 0) 로직 모방: 기존에 유효한 평가금액이 있으면 0으로 덮어쓰지 않음
+      masterMap.set(key, { ...m, 평가금액: existing.평가금액 || 0 })
+    } else {
+      masterMap.set(key, m)
+    }
   }
 
   const ovsMap = new Map<string, number>()

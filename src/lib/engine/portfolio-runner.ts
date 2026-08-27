@@ -123,14 +123,31 @@ export async function runPortfolioValuation(): Promise<{
   // 개별 주식 현재가 KIS 조회
   if (kisService) {
     for (const ticker of stockCodes) {
-      try {
-        const price = await kisService.getCurrentPrice(ticker)
-        if (price !== null && !isNaN(price)) {
-          closingPricesMap.set(ticker, price)
+      let success = false
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const price = await kisService.getCurrentPrice(ticker)
+          if (price !== null && !isNaN(price)) {
+            closingPricesMap.set(ticker, price)
+            success = true
+            break // 성공 시 재시도 루프 탈출
+          }
+        } catch (err) {
+          console.warn(`Price fetch error for ${ticker} (attempt ${attempt}):`, err)
         }
-      } catch (err) {
-        console.warn(`Price fetch error for ${ticker}:`, err)
+        
+        // 실패 시 재시도를 위해 500ms 길게 대기
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
       }
+
+      if (!success) {
+        console.warn(`[RateLimit] Failed to fetch price for ${ticker} after 3 attempts.`)
+      }
+
+      // 초당 API 호출 제한(Rate Limit)을 피하기 위해 평상시 기본 50ms 딜레이 부여
+      await new Promise((resolve) => setTimeout(resolve, 50))
     }
   }
 

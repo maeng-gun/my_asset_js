@@ -89,10 +89,20 @@ export class MarketDataService {
         if (!resp.ok) continue
         const html = await resp.text()
         const $ = cheerio.load(html)
-        const priceText = $('div.price_info strong').first().text().replace(/,/g, '').trim() ||
-          $('td:contains("기준가")').next().text().replace(/,/g, '').trim()
-
-        const parsed = parseFloat(priceText)
+        
+        let parsed = NaN;
+        const textContent = $('body').text().replace(/\s+/g, ' ');
+        const match = textContent.match(/기준가\(\)\s*([0-9.,]+)/);
+        if (match && match[1]) {
+          parsed = parseFloat(match[1].replace(/,/g, ''));
+        }
+        
+        if (isNaN(parsed) || parsed === 0) {
+          const fallbackMatch = textContent.match(/기준가.*?([0-9.,]+)/);
+          if (fallbackMatch && fallbackMatch[1]) {
+            parsed = parseFloat(fallbackMatch[1].replace(/,/g, ''));
+          }
+        }
         if (!isNaN(parsed) && parsed > 0) {
           results.push({
             종목코드: code,
