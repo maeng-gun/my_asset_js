@@ -238,7 +238,7 @@ export function buildProfitTrendData(
     const prevYear = prev.기준일.substring(0, 4)
     const curYear = cur.기준일.substring(0, 4)
 
-    const dailyProfit = curYear !== prevYear ? 0 : Math.round((cur.총손익 - prev.총손익) / 10000)
+    const dailyProfit = curYear !== prevYear ? Math.round(cur.총손익 / 10000) : Math.round((cur.총손익 - prev.총손익) / 10000)
     cumProfit += dailyProfit
 
     const dailyYield = prev.평가금액 > 0 ? Number((((dailyProfit * 10000) / prev.평가금액) * 100).toFixed(2)) : 0
@@ -279,7 +279,11 @@ export function buildAssetProfitData(
     for (let i = 1; i < items.length; i++) {
       const prev = items[i - 1]
       const cur = items[i]
-      const daily = Math.round((cur.총손익 - prev.총손익) / 10000)
+      
+      const prevYear = prev.기준일.substring(0, 4)
+      const curYear = cur.기준일.substring(0, 4)
+      
+      const daily = curYear !== prevYear ? Math.round(cur.총손익 / 10000) : Math.round((cur.총손익 - prev.총손익) / 10000)
       cum += daily
       res.push({
         기준일: cur.기준일,
