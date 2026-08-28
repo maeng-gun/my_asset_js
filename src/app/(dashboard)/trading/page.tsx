@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
@@ -97,6 +97,36 @@ export default function TradingPage() {
       return await getCategories()
     },
   })
+
+  // 동적 계좌 목록 계산
+  const availableAccounts = useMemo(() => {
+    if (!categories) return []
+    const key = tradeType === '투자자산' ? 'ass_account' : 'pen_account'
+    return categories.filter((c: any) => c.key === key).map((c: any) => c.value)
+  }, [categories, tradeType])
+
+  // 계좌 목록 변경 시 첫 번째 항목 자동 선택
+  useEffect(() => {
+    if (availableAccounts.length > 0 && !availableAccounts.includes(account) && !selectedRowId) {
+      setAccount(availableAccounts[0])
+    }
+  }, [availableAccounts, account, selectedRowId])
+
+  // 동적 통화 목록 계산
+  const availableCurrencies = useMemo(() => {
+    if (!tickersData) return []
+    const currencies = tickersData
+      .filter((t: any) => t.계좌 === account && t.통화)
+      .map((t: any) => t.통화)
+    return Array.from(new Set(currencies))
+  }, [tickersData, account])
+
+  // 통화 목록 변경 시 첫 번째 항목 자동 선택
+  useEffect(() => {
+    if (availableCurrencies.length > 0 && !availableCurrencies.includes(currency) && !selectedRowId) {
+      setCurrency(availableCurrencies[0])
+    }
+  }, [availableCurrencies, currency, selectedRowId])
 
   // 5. 종합거래내역 API 쿼리 (단가 및 계층분류 집계)
   const { data: totalTradesData, isLoading: isLoadingTotal } = useQuery({
@@ -234,16 +264,13 @@ const deleteTradeMutation = useMutation({
                     onChange={(e) => setAccount(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
                   >
-                    <option value="한투">한투</option>
-                    <option value="불리오">불리오</option>
-                    <option value="한투ISA">한투ISA</option>
-                    <option value="엔투ISA">엔투ISA</option>
-                    <option value="엔투저축연금">엔투저축연금</option>
-                    <option value="한투연금저축">한투연금저축</option>
-                    <option value="미래DC">미래DC</option>
-                    <option value="농협IRP">농협IRP</option>
-                    <option value="엔투IRP">엔투IRP</option>
-                    <option value="금현물">금현물</option>
+                    {availableAccounts.length > 0 ? (
+                      availableAccounts.map((acc: string) => (
+                        <option key={acc} value={acc}>{acc}</option>
+                      ))
+                    ) : (
+                      <option value="">계좌 없음</option>
+                    )}
                   </select>
                 </div>
 
@@ -254,9 +281,13 @@ const deleteTradeMutation = useMutation({
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
                   >
-                    <option value="원화">원화</option>
-                    <option value="달러">달러</option>
-                    <option value="엔화">엔화</option>
+                    {availableCurrencies.length > 0 ? (
+                      availableCurrencies.map((curr: string) => (
+                        <option key={curr} value={curr}>{curr}</option>
+                      ))
+                    ) : (
+                      <option value="">통화 없음</option>
+                    )}
                   </select>
                 </div>
 
@@ -266,7 +297,8 @@ const deleteTradeMutation = useMutation({
                     type="date"
                     value={tradeDate}
                     onChange={(e) => setTradeDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
+                    onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 cursor-pointer"
                   />
                 </div>
 
@@ -403,6 +435,16 @@ const deleteTradeMutation = useMutation({
         </button>
         <button
           onClick={() => {
+            if(confirm('삭제하시겠습니까?')) deleteTradeMutation.mutate(selectedRowId);
+          }}
+          disabled={deleteTradeMutation.isPending}
+          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" />
+          삭제
+        </button>
+        <button
+          onClick={() => {
             setSelectedRowId(null)
             setBuyQ(0); setBuyAmt(0); setBuyCash(0); setSellQ(0); setSellPrincipal(0); setSellAmt(0); setDividend(0); setCashIn(0); setInOut(0);
           }}
@@ -450,7 +492,6 @@ const deleteTradeMutation = useMutation({
   <th className="py-3 px-3 text-right font-bold text-emerald-400">순수익</th>
   <th className="py-3 px-3 text-right">입출금</th>
   <th className="py-3 px-3 text-right font-bold text-slate-200">잔액</th>
-  <th className="py-3 px-3 text-center">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -459,7 +500,7 @@ const deleteTradeMutation = useMutation({
                     return (
                       <tr
                         key={r.행번호}
-                        
+                        onClick={() => setEditMode(r)}
                         className={`cursor-pointer transition ${
                           isSelected ? 'bg-emerald-500/20 border-l-4 border-l-emerald-500' : 'hover:bg-slate-800/40'
                         }`}
@@ -482,24 +523,6 @@ const deleteTradeMutation = useMutation({
   <td className="py-2.5 px-3 text-right font-bold text-emerald-400">{formatKRW(r.순수익)}</td>
   <td className="py-2.5 px-3 text-right">{formatKRW(r.입출금)}</td>
   <td className="py-2.5 px-3 text-right font-bold text-slate-200">{formatKRW(r.잔액)}</td>
-  <td className="py-2.5 px-3 text-center">
-    <div className="flex items-center justify-center gap-2">
-      <button 
-        onClick={(e) => { e.stopPropagation(); setEditMode(r); }}
-        className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-emerald-600/20 hover:text-emerald-400 transition"
-        title="수정"
-      >
-        <Edit2 className="w-4 h-4" />
-      </button>
-      <button 
-        onClick={(e) => { e.stopPropagation(); if(confirm('삭제하시겠습니까?')) deleteTradeMutation.mutate(r.행번호); }}
-        className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-600/20 hover:text-rose-400 transition"
-        title="삭제"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
-  </td>
                       </tr>
                     )
                   })}

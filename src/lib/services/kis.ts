@@ -37,17 +37,7 @@ export class KISService {
 
     // 환경변수가 없는 경우 DB config 테이블에서 폴백 조회
     if (!appKey || !appSecret || !account) {
-      try {
-        const { data: dbConfig } = await supabase.from('config').select('token, value')
-        if (dbConfig) {
-          const cfgMap = Object.fromEntries(dbConfig.map((r: { token: string; value: string }) => [r.token, r.value]))
-          appKey = appKey || cfgMap[`${accountName}_app`]
-          appSecret = appSecret || cfgMap[`${accountName}_sec`]
-          account = account || cfgMap[`${accountName}_acct`]
-        }
-      } catch (err) {
-        console.warn('DB Config lookup fallback failed:', err)
-      }
+      console.warn(`[KISService] Missing environment variables for ${accountName}`);
     }
 
     return new KISService(
@@ -74,7 +64,8 @@ export class KISService {
     try {
       const { data } = await supabase.from(this.tokenTable).select('token, valid_date').limit(1).single()
       if (data?.token && data?.valid_date) {
-        const validDate = new Date(data.valid_date)
+        // DB의 valid_date는 KST 문자열(예: '2024-08-28 10:10:10')로 가정
+        const validDate = new Date(data.valid_date.replace(' ', 'T') + '+09:00')
         if (validDate > now) {
           this.tokenCache = { token: data.token, expiresAt: validDate }
           return data.token
@@ -110,14 +101,26 @@ export class KISService {
 
       const json = await response.json()
       const token = json.access_token
-      const expiresIn = json.expires_in || 86400
-      const expiresAt = new Date(now.getTime() + (expiresIn - 300) * 1000)
+      
+      let expiresAt: Date;
+      let formattedDate: string;
+
+      if (json.access_token_token_expired) {
+        // KIS API가 KST 포맷의 만료 시간을 제공하는 경우
+        formattedDate = json.access_token_token_expired;
+        expiresAt = new Date(formattedDate.replace(' ', 'T') + '+09:00');
+      } else {
+        // 제공하지 않는 경우 직접 계산 후 KST 문자열로 변환
+        const expiresIn = json.expires_in || 86400;
+        expiresAt = new Date(now.getTime() + (expiresIn - 300) * 1000);
+        const kstDate = new Date(expiresAt.getTime() + 9 * 60 * 60 * 1000);
+        formattedDate = kstDate.toISOString().replace('T', ' ').substring(0, 19);
+      }
 
       this.tokenCache = { token, expiresAt }
 
       // DB에 저장
       try {
-        const formattedDate = expiresAt.toISOString().replace('T', ' ').substring(0, 19)
         await supabase.from(this.tokenTable).upsert(
           {
             token,

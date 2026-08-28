@@ -187,7 +187,7 @@ export default function AssetSettingsPage() {
             </div>
             <div>
               <label className="text-xs text-slate-400 font-medium block mb-1">만기일</label>
-              <input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100" />
+              <input type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 cursor-pointer" />
             </div>
           </div>
           <div className="flex items-center justify-center gap-3 pt-4 border-t border-slate-800">
@@ -195,6 +195,9 @@ export default function AssetSettingsPage() {
               <>
                 <button onClick={() => saveMutation.mutate()} disabled={!ticker || saveMutation.isPending} className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition disabled:opacity-50">
                   <Check className="w-4 h-4" /> 수정
+                </button>
+                <button onClick={() => { if(confirm('삭제하시겠습니까?')) deleteMutation.mutate(editId!) }} disabled={deleteMutation.isPending} className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition disabled:opacity-50">
+                  <Trash2 className="w-4 h-4" /> 삭제
                 </button>
                 <button onClick={resetForm} className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-slate-600 hover:bg-slate-500 text-white transition">
                   <X className="w-4 h-4" /> 취소
@@ -225,36 +228,38 @@ export default function AssetSettingsPage() {
                 <th className="py-3 px-4">세부자산군2</th>
                 <th className="py-3 px-4">통화</th>
                 <th className="py-3 px-4 text-right">평가금액</th>
-                <th className="py-3 px-4 text-right">관리</th>
+                <th className="py-3 px-4 text-right">만기일</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {(() => {
-                let displayed = tickersData || []
+                let displayed = tickersData ? [...tickersData] : []
                 if (account) displayed = displayed.filter((t: any) => t.계좌 === account)
+                // 행번호 기준 내림차순(역순) 정렬
+                displayed.sort((a: any, b: any) => (b.행번호 || 0) - (a.행번호 || 0))
                 return displayed
-              })().map((t: any) => (
-                <tr key={t.행번호} className="hover:bg-slate-800/40 transition">
-                  <td className="py-2.5 px-4 text-center text-slate-500">{t.행번호}</td>
-                  <td className="py-2.5 px-4 font-semibold text-slate-200">{t.계좌}</td>
-                  <td className="py-2.5 px-4 font-mono text-emerald-400">{t.종목코드}</td>
-                  <td className="py-2.5 px-4 font-medium text-slate-100">{t.종목명}</td>
-                  <td className="py-2.5 px-4 text-slate-300">{t.상품명}</td>
-                  <td className="py-2.5 px-4 text-slate-400">{t.자산군}</td>
-                  <td className="py-2.5 px-4 text-slate-400">{t.세부자산군}</td>
-                  <td className="py-2.5 px-4 text-slate-400">{t.세부자산군2}</td>
-                  <td className="py-2.5 px-4 text-slate-400">{t.통화}</td>
-                  <td className="py-2.5 px-4 text-right font-mono">{formatKRW(t.평가금액 || 0)}</td>
-                  <td className="py-2.5 px-4 text-right">
-                    <button onClick={() => handleEdit(t)} className="p-1.5 text-blue-400 hover:bg-blue-400/20 rounded mr-1">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => { if(confirm('삭제하시겠습니까?')) deleteMutation.mutate(t.행번호) }} className="p-1.5 text-rose-400 hover:bg-rose-400/20 rounded">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              })().map((t: any) => {
+                const isSelected = editId === t.행번호;
+                return (
+                  <tr 
+                    key={t.행번호} 
+                    onClick={() => handleEdit(t)} 
+                    className={`cursor-pointer transition ${isSelected ? 'bg-emerald-500/20 border-l-4 border-l-emerald-500' : 'hover:bg-slate-800/40'}`}
+                  >
+                    <td className="py-2.5 px-4 text-center text-slate-500">{t.행번호}</td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-200">{t.계좌}</td>
+                    <td className="py-2.5 px-4 font-mono text-emerald-400">{t.종목코드}</td>
+                    <td className="py-2.5 px-4 font-medium text-slate-100">{t.종목명}</td>
+                    <td className="py-2.5 px-4 text-slate-300">{t.상품명}</td>
+                    <td className="py-2.5 px-4 text-slate-400">{t.자산군}</td>
+                    <td className="py-2.5 px-4 text-slate-400">{t.세부자산군}</td>
+                    <td className="py-2.5 px-4 text-slate-400">{t.세부자산군2}</td>
+                    <td className="py-2.5 px-4 text-slate-400">{t.통화}</td>
+                    <td className="py-2.5 px-4 text-right font-mono">{formatKRW(t.평가금액 || 0)}</td>
+                    <td className="py-2.5 px-4 text-right">{t.만기일}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </CardBody>
