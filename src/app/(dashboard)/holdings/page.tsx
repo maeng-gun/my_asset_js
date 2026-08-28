@@ -227,7 +227,7 @@ export default function HoldingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {(summary?.t_comm2 || []).map((h, i) => {
+                {(summary?.t_comm2 || []).filter((h) => h.장부금액 !== 0 || !h.자산군 || h.자산군 === '').map((h, i) => {
                   const isAccountTotal = !h.자산군 || h.자산군 === ''
                   return (
                     <tr
@@ -240,8 +240,8 @@ export default function HoldingsPage() {
                       <td className="py-2.5 px-3 font-sans text-slate-400">{h.자산군 || '<계좌소계>'}</td>
                       <td className="py-2.5 px-3 font-sans text-slate-400">{h.세부자산군 || '-'}</td>
                       <td className="py-2.5 px-3 font-sans text-slate-400">{h.세부자산군2 || '-'}</td>
-                      <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={h.종목명}>
-                        {h.종목명 || (isAccountTotal ? '계좌 합계' : '-')}
+                      <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={h.상품명 || h.종목명}>
+                        {h.상품명 || h.종목명 || (isAccountTotal ? '계좌 합계' : '-')}
                       </td>
                       <td className="py-2.5 px-3 text-right">{h.보유수량 === 0 ? '-' : formatKRW(h.보유수량)}</td>
                       <td className="py-2.5 px-3 text-right">{formatKRW(h.장부금액)}</td>
@@ -308,8 +308,10 @@ export default function HoldingsPage() {
                     }
                   })
 
-                  const sortedData = [...(summary?.t_comm10 || [])].sort((a, b) => {
-                    const orderA = commodityOrder.get(a.상품명) ?? 999999
+                  const sortedData = [...(summary?.t_comm10 || [])]
+                    .filter((h) => h.장부금액 !== 0)
+                    .sort((a, b) => {
+                      const orderA = commodityOrder.get(a.상품명) ?? 999999
                     const orderB = commodityOrder.get(b.상품명) ?? 999999
                     if (orderA !== orderB) return orderA - orderB
                     return (a.계좌 || '').localeCompare(b.계좌 || '')

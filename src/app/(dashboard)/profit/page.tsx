@@ -680,8 +680,8 @@ export default function ProfitPage() {
                   })
 
                   const sortedData = [...(summary?.comm_profit2 || [])].sort((a, b) => {
-                    const orderA = commodityOrder.get(a.종목명) ?? 999999
-                    const orderB = commodityOrder.get(b.종목명) ?? 999999
+                    const orderA = commodityOrder.get(a.상품명) ?? 999999
+                    const orderB = commodityOrder.get(b.상품명) ?? 999999
                     if (orderA !== orderB) return orderA - orderB
                     return (a.계좌 || '').localeCompare(b.계좌 || '')
                   })
@@ -691,8 +691,8 @@ export default function ProfitPage() {
                       <td className="py-2.5 px-3 font-sans font-semibold text-slate-200">{r.자산군}</td>
                       <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군 || '-'}</td>
                       <td className="py-2.5 px-3 font-sans text-slate-400">{r.세부자산군2 || '-'}</td>
-                      <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={r.종목명}>
-                        {r.종목명}
+                      <td className="py-2.5 px-3 font-sans font-medium text-slate-100 max-w-[180px] truncate" title={r.상품명}>
+                        {r.상품명}
                       </td>
                       <td className="py-2.5 px-3 font-sans text-slate-300">{r.계좌}</td>
                       <td className="py-2.5 px-3 font-sans text-slate-400">{r.통화}</td>

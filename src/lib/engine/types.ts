@@ -80,6 +80,7 @@ export interface BalanceSheetRecord {
   계좌: string
   종목코드: string
   종목명: string
+  상품명?: string
   통화: string
   거래일자: string
   수익: number
@@ -188,6 +189,7 @@ export interface DetailedCommodityProfitRecord {
   세부자산군: string
   세부자산군2: string
   종목명: string
+  상품명: string
   보유수량: number
   장부금액: number
   평잔: number
@@ -207,6 +209,7 @@ export interface DetailedCommodityProfit2Record {
   세부자산군: string
   세부자산군2: string
   종목명: string
+  상품명: string
   계좌: string
   통화: string
   보유수량: number

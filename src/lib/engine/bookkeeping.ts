@@ -175,6 +175,7 @@ export function getBalanceSheet(
         계좌: t.계좌,
         종목코드: t.종목코드,
         종목명: t.종목명,
+        상품명: masterMap.get(`${t.계좌}_${t.종목코드}`)?.상품명 || t.종목명,
         통화: t.통화,
         거래일자: t.거래일자,
         수익: cumRevenueYear,
