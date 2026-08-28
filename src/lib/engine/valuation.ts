@@ -496,7 +496,7 @@ export function computeCommodityHoldings(
 
   // t_comm10 (엑셀 복사용)
   const tComm10: CommodityHolding3Record[] = combinedRaw
-    .filter((r) => r.자산군 !== '외화자산' && r.종목명)
+    .filter((r) => r.자산군 !== '외화자산' && r.종목명 && r.통화원화환산장부금액 !== 0)
     .map((r) => {
       const evalAmt = r.통화원화환산평가금액
       const evalProfit = evalAmt - r.통화원화환산장부금액
@@ -505,7 +505,7 @@ export function computeCommodityHoldings(
         자산군: r.자산군,
         세부자산군: r.세부자산군,
         세부자산군2: r.세부자산군2,
-        상품명: r.종목명,
+        상품명: r.상품명 || r.종목명,
         평가금액: evalAmt,
         평가손익: evalProfit,
         평가수익률: evalYield,

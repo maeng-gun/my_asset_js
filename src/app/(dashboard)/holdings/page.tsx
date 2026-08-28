@@ -309,7 +309,6 @@ export default function HoldingsPage() {
                   })
 
                   const sortedData = [...(summary?.t_comm10 || [])]
-                    .filter((h) => h.장부금액 !== 0)
                     .sort((a, b) => {
                       const orderA = commodityOrder.get(a.상품명) ?? 999999
                     const orderB = commodityOrder.get(b.상품명) ?? 999999
