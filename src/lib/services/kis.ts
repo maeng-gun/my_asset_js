@@ -123,10 +123,11 @@ export class KISService {
       try {
         await supabase.from(this.tokenTable).upsert(
           {
+            id: 1,
             token,
             valid_date: formattedDate,
           },
-          { onConflict: 'token' }
+          { onConflict: 'id' }
         )
       } catch (e) {
         console.warn('[KISService] Token save to DB warning:', e)
