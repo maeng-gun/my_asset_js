@@ -609,7 +609,7 @@ export function computeAssetProfit(
       let astClass = r.자산군
       let astClass1 = r.세부자산군
       let astClass2 = r.세부자산군2
-      if (r.자산군 === '외화자산' && r.세부자산군 === '달러자산') {
+      if (r.자산군 === '외화자산' && (r.세부자산군 === '달러자산' || r.세부자산군 === '엔화자산')) {
         astClass = '주식'
         astClass1 = '선진국'
         astClass2 = '종목'

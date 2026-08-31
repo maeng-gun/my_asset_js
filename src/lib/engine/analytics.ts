@@ -19,7 +19,8 @@ export function computeTotalProfit(
   evalProfitRows: Array<{ 연도: number; 평가손익: number }>,
   returnRows: Array<{ 기준일: string; 자산군: string; 평가금액: number; 총손익: number }>,
   currentYear = new Date().getFullYear(),
-  currentEvalAmt?: number // t_comm3 <합계> 평가금액 — 현재 연도에 직접 사용
+  currentEvalAmt?: number, // t_comm3 <합계> 평가금액 — 현재 연도에 직접 사용
+  currentEvalProfit?: number // t_comm3 <합계> 평가손익
 ): TotalProfitRecord[] {
   const base2023: TotalProfitRecord = {
     연도: '2023',
@@ -67,7 +68,11 @@ export function computeTotalProfit(
 
   for (const b of sortedBook) {
     const curYear = Number(b.연도)
-    const evalProfit = evalMap.get(curYear) || 0
+    // 현재 연도는 t_comm3 합계 평가손익을 우선 사용 (가장 정확한 실시간 값)
+    const evalProfit = (curYear === currentYear && currentEvalProfit != null)
+      ? currentEvalProfit
+      : (evalMap.get(curYear) || 0)
+      
     // 현재 연도는 t_comm3 합계 평가금액을 우선 사용 (가장 정확한 실시간 값)
     const evalAmt = (curYear === currentYear && currentEvalAmt != null)
       ? currentEvalAmt

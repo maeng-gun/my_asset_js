@@ -230,7 +230,7 @@ export async function runPortfolioValuation(): Promise<{
   // 연도별 장부금액 및 평잔 요약
   const yearBookMap = new Map<number, { 장부금액: number; 평잔: number; 실현손익: number }>()
   const combinedYearTrades = [...bsAssets, ...bsPension].filter(
-    (r) => r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr
+    (r) => (r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr) && r.통화 === '원화'
   )
   for (const r of combinedYearTrades) {
     const y = Number(r.거래일자.substring(0, 4))
@@ -246,15 +246,18 @@ export async function runPortfolioValuation(): Promise<{
     ...v,
   }))
 
-  // t_comm3에서 현재 연도의 <합계> 평가금액 추출
-  const currentEvalAmt = tComm3.find((r) => r.자산군 === '<합계>')?.평가금액
+  // t_comm3에서 현재 연도의 <합계> 평가금액 및 평가손익 추출
+  const currentEvalRow = tComm3.find((r) => r.자산군 === '<합계>')
+  const currentEvalAmt = currentEvalRow?.평가금액
+  const currentEvalProfit = currentEvalRow?.평가손익
 
   const totalProfit = computeTotalProfit(
     bookInfo,
     evalProfitRows || [],
     returnAllRows || [],
     currentYear,
-    currentEvalAmt
+    currentEvalAmt,
+    currentEvalProfit
   )
 
   const profitVariation = computeProfitVariation(
