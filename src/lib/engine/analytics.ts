@@ -364,7 +364,8 @@ export function calcEvalTrendData(
   returnRows: Array<{ 기준일: string; 자산군: string; 평가금액: number }>,
   inflowRows: Array<{ 거래일자: string; 계좌: string; 금액?: number; 자금유출입?: number }>,
   tComm2: Array<BalanceSheetRecord & { 평가수익률: number }>,
-  today = new Date()
+  today = new Date(),
+  maturityRows: Array<{ 계좌: string; 평가금액: number; 만기일: string }> = []
 ) {
   const oneYearAgo = format(subYears(today, 1), 'yyyy-MM-dd')
   const todayStr = format(today, 'yyyy-MM-dd')
@@ -405,7 +406,7 @@ export function calcEvalTrendData(
     )
   }
 
-  // 3. 미래 유출입 집계
+  // 3. 미래 유출입 및 만기도래 집계
   const inflowAllMap = new Map<string, number>()
   const inflowHantuMap = new Map<string, number>()
 
@@ -419,28 +420,47 @@ export function calcEvalTrendData(
     }
   }
 
+  const maturityAllMap = new Map<string, number>()
+  const maturityHantuMap = new Map<string, number>()
+
+  for (const mat of maturityRows) {
+    const d = mat.만기일 ? mat.만기일.substring(0, 10) : ''
+    if (!d) continue
+    const amt = Math.round((mat.평가금액 || 0) / 10000)
+    maturityAllMap.set(d, (maturityAllMap.get(d) || 0) + amt)
+    if (mat.계좌 === '한투') {
+      maturityHantuMap.set(d, (maturityHantuMap.get(d) || 0) + amt)
+    }
+  }
+
   // 4. 미래 1년 일별 시계열 생성
   const futureDays = eachDayOfInterval({
     start: parseISO(todayStr),
     end: parseISO(oneYearLater),
   }).map((d) => format(d, 'yyyy-MM-dd'))
 
-  let cumTotal = 0
-  let cumHantu = 0
+  let cumTotalInflow = 0
+  let cumHantuInflow = 0
+  let cumTotalMaturity = 0
+  let cumHantuMaturity = 0
 
   const futureRows = futureDays.map((day) => {
-    const diffTotal = day === todayStr ? 0 : inflowAllMap.get(day) || 0
-    const diffHantu = day === todayStr ? 0 : inflowHantuMap.get(day) || 0
+    const diffTotalInflow = day === todayStr ? 0 : inflowAllMap.get(day) || 0
+    const diffHantuInflow = day === todayStr ? 0 : inflowHantuMap.get(day) || 0
+    const diffTotalMaturity = day === todayStr ? 0 : maturityAllMap.get(day) || 0
+    const diffHantuMaturity = day === todayStr ? 0 : maturityHantuMap.get(day) || 0
 
-    cumTotal += diffTotal
-    cumHantu += diffHantu
+    cumTotalInflow += diffTotalInflow
+    cumHantuInflow += diffHantuInflow
+    cumTotalMaturity += diffTotalMaturity
+    cumHantuMaturity += diffHantuMaturity
 
     return {
       기준일: day,
-      예상평가액: Math.round(lastEval + cumTotal),
-      투자가능자산: Math.round(initInvestable + cumTotal),
-      현금화가능자산: Math.round(initLiquidatable + cumHantu),
-      인출가능현금: Math.round(initWithdrawable + cumHantu),
+      예상평가액: Math.round(lastEval + cumTotalInflow),
+      투자가능자산: Math.round(initInvestable + cumTotalInflow + cumTotalMaturity),
+      현금화가능자산: Math.round(initLiquidatable + cumHantuInflow),
+      인출가능현금: Math.round(initWithdrawable + cumHantuInflow + cumHantuMaturity),
       구분: '예상평가액(점선)',
     }
   })

@@ -190,6 +190,7 @@ export default function LiquidityPage() {
         data: trendList.map((r) => r.과거평가액),
         smooth: true,
         symbol: 'none',
+        itemStyle: { color: '#38bdf8' },
         lineStyle: { color: '#38bdf8', width: 2.5 },
       },
       {
@@ -198,6 +199,7 @@ export default function LiquidityPage() {
         data: trendList.map((r) => r.예상평가액),
         smooth: true,
         symbol: 'none',
+        itemStyle: { color: '#60a5fa' },
         lineStyle: { color: '#60a5fa', width: 2, type: 'dashed' },
       },
       {
@@ -206,6 +208,7 @@ export default function LiquidityPage() {
         data: trendList.map((r) => r.투자가능자산),
         smooth: true,
         symbol: 'none',
+        itemStyle: { color: '#10b981' },
         lineStyle: { color: '#10b981', width: 2 },
       },
       {
@@ -214,6 +217,7 @@ export default function LiquidityPage() {
         data: trendList.map((r) => r.현금화가능자산),
         smooth: true,
         symbol: 'none',
+        itemStyle: { color: '#f59e0b' },
         lineStyle: { color: '#f59e0b', width: 2 },
       },
       {
@@ -222,6 +226,7 @@ export default function LiquidityPage() {
         data: trendList.map((r) => r.인출가능현금),
         smooth: true,
         symbol: 'none',
+        itemStyle: { color: '#f43f5e' },
         lineStyle: { color: '#f43f5e', width: 2 },
       },
     ],

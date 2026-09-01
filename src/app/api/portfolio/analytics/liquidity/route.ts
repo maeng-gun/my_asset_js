@@ -29,16 +29,16 @@ export async function GET(req: NextRequest) {
     const tComm2 = (summaryRow?.t_comm2 || []) as any[]
     const today = new Date()
 
-    // 2. 5개 추세선 차트 데이터 계산
-    const evalTrend = calcEvalTrendData(returnRows || [], inflowRows || [], tComm2, today)
-
-    // 3. 만기도래 분석 데이터 계산
+    // 2. 만기도래 분석 데이터 계산
     const maturity = calcMaturityAnalysis(
       tComm2,
       [],
       assetsMaster || [],
       pensionMaster || []
     )
+
+    // 3. 5개 추세선 차트 데이터 계산 (만기 반영)
+    const evalTrend = calcEvalTrendData(returnRows || [], inflowRows || [], tComm2, today, maturity)
 
     // 4. 총자산 및 가용자금 시계열 투사 데이터 계산
     const liquidityAnalysis = calcLiquidityAnalysis(
