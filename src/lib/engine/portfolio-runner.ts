@@ -72,20 +72,17 @@ export async function runPortfolioValuation(): Promise<{
   // 2. 환율, 금 시세, KIS 시세 수집
   let exchangeRates = { USD: 1400, JPY: 9.3 }
   let goldPrice: { 종목코드: string; 종가: number } | null = null
-  let kisService: KISService | null = null
   let kisBoolioService: KISService | null = null
   let ovsBalances: Array<{ 종목코드: string; 평가금액: number }> = []
 
   try {
-    const [ex, gp, ks, kb] = await Promise.all([
+    const [ex, gp, kb] = await Promise.all([
       MarketDataService.getExchangeRates().catch(() => ({ USD: 1400, JPY: 9.3 })),
       MarketDataService.getGoldPrice().catch(() => null),
-      KISService.create('my').catch(() => null),
       KISService.create('boolio').catch(() => null),
     ])
     if (ex) exchangeRates = ex
     if (gp) goldPrice = gp
-    if (ks) kisService = ks
     if (kb) {
       kisBoolioService = kb
       ovsBalances = await kisBoolioService.getOverseasBalance('USD').catch(() => [])
@@ -121,12 +118,12 @@ export async function runPortfolioValuation(): Promise<{
   }
 
   // 개별 주식 현재가 KIS 조회
-  if (kisService) {
+  if (kisBoolioService) {
     for (const ticker of stockCodes) {
       let success = false
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          const price = await kisService.getCurrentPrice(ticker)
+          const price = await kisBoolioService.getCurrentPrice(ticker)
           if (price !== null && !isNaN(price)) {
             closingPricesMap.set(ticker, price)
             success = true
