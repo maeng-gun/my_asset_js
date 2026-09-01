@@ -84,8 +84,6 @@ export default function LiquidityPage() {
         거래일자: inflowDate,
         계좌: inflowAccount,
         자금유출입: signedAmt,
-        구분: inflowType,
-        금액: Math.abs(inflowAmt),
       })
     },
     onSuccess: () => {
@@ -110,8 +108,6 @@ export default function LiquidityPage() {
         거래일자: inflowDate,
         계좌: inflowAccount,
         자금유출입: signedAmt,
-        구분: inflowType,
-        금액: Math.abs(inflowAmt),
       })
     },
     onSuccess: () => {
@@ -280,8 +276,15 @@ export default function LiquidityPage() {
                   <input
                     type="date"
                     value={inflowDate}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker()
+                      } catch (err) {
+                        // ignore if showPicker is not supported
+                      }
+                    }}
                     onChange={(e) => setInflowDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 cursor-pointer [color-scheme:dark]"
                   />
                 </div>
 
