@@ -551,6 +551,7 @@ const deleteTradeMutation = useMutation({
                   type="date"
                   value={totalStartDate}
                   onChange={(e) => setTotalStartDate(e.target.value)}
+                  onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
                   className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
                 />
                 <span className="text-slate-500">~</span>
@@ -558,6 +559,7 @@ const deleteTradeMutation = useMutation({
                   type="date"
                   value={totalEndDate}
                   onChange={(e) => setTotalEndDate(e.target.value)}
+                  onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
                   className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
                 />
               </div>

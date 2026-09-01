@@ -346,6 +346,7 @@ export default function ProfitPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
               className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
             />
             <span className="text-slate-500">~</span>
@@ -353,6 +354,7 @@ export default function ProfitPage() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
               className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
             />
             <div className="flex gap-1.5 ml-auto">

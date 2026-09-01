@@ -1,4 +1,5 @@
-import yahooFinance from 'yahoo-finance2'
+import YahooFinance from 'yahoo-finance2'
+const yahooFinance = new YahooFinance()
 import {
   calculateReturns,
   calculateCumulativeReturns,
@@ -11,11 +12,11 @@ import { format, subYears } from 'date-fns'
 
 // 포트폴리오 자산군 벤치마크 매핑
 export const ASSET_CLASS_BENCHMARKS: Record<string, string> = {
-  '주식': 'ACWI',
-  '채권': 'AGG',
-  '대체자산': 'GLD',
-  '현금성': 'SHV',
-  '외화자산': 'UUP',
+  '선진국': '360200.KS',
+  '국내': '305050.KS',
+  '실물자산': '411060.KS',
+  '인컴자산': '329200.KS',
+  '채권': '114460.KS',
 }
 
 export interface AssetClassPerformance {

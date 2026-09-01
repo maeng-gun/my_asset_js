@@ -30,10 +30,10 @@ export async function GET(req: NextRequest) {
     // BM 데이터를 가져옵니다.
     const activeStartDate = uniqueDates.length > 0 ? uniqueDates[0] : startDate || '2020-01-01'
     const activeEndDate = uniqueDates.length > 0 ? uniqueDates[uniqueDates.length - 1] : endDate || format(new Date(), 'yyyy-MM-dd')
-    const bmData = await buildAssetPerformanceData(['주식', '채권', '대체자산', '현금성', '외화자산'], activeStartDate, activeEndDate)
+    const bmData = await buildAssetPerformanceData(['선진국', '국내', '실물자산', '인컴자산', '채권'], activeStartDate, activeEndDate)
 
     // 헬퍼: 자산군별 MyPF 일별 수익률 산출 및 BM 병합
-    const calcMyPfAssetSeries = (acName: string, filterFn: (r: any) => boolean) => {
+    const calcMyPfAssetSeries = (bmKey: string, filterFn: (r: any) => boolean) => {
       const filtered = base.filter(filterFn).sort((a, b) => a.기준일.localeCompare(b.기준일))
       const dateMap = new Map<string, { 총손익: number; 평가금액: number }>()
       for (const f of filtered) {
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
       const series: Array<{ 기준일: string; MyPF: number; BM: number; DD: number }> = []
       
-      const bmAssetData = bmData[acName]
+      const bmAssetData = bmData[bmKey]
       const bmDateMap = new Map<string, number>()
       if (bmAssetData) {
         for (let i = 0; i < bmAssetData.dates.length; i++) {
@@ -69,9 +69,11 @@ export async function GET(req: NextRequest) {
           continue
         }
 
-        const dailyProfit = cur.총손익 - prevProfit
+        const prevDate = uniqueDates[i - 1]
+        const isNewYear = d.substring(0, 4) !== prevDate.substring(0, 4)
+        const dailyProfit = isNewYear ? cur.총손익 : cur.총손익 - prevProfit
         const dailyReturn = prevEval > 0 ? (dailyProfit / prevEval) * 100 : 0
-        cumReturn = (1 + cumReturn / 100) * (1 + dailyReturn / 100) - 1
+        cumReturn = (1 + cumReturn) * (1 + dailyReturn / 100) - 1
         const cumPercent = Number((cumReturn * 100).toFixed(2))
 
         if (cumPercent > maxCum) maxCum = cumPercent
@@ -96,10 +98,10 @@ export async function GET(req: NextRequest) {
     }
 
     const performance = {
-      선진국: calcMyPfAssetSeries('주식', (r) => r.자산군 === '주식' && r.세부자산군 === '선진국' && (!r.세부자산군2 || r.세부자산군2 === '')),
-      국내: calcMyPfAssetSeries('주식', (r) => r.자산군 === '주식' && ['국내', '신흥국'].includes(r.세부자산군) && (!r.세부자산군2 || r.세부자산군2 === '')),
-      실물자산: calcMyPfAssetSeries('대체자산', (r) => r.자산군 === '대체자산' && r.세부자산군 === '실물자산' && (!r.세부자산군2 || r.세부자산군2 === '')),
-      인컴자산: calcMyPfAssetSeries('대체자산', (r) => r.자산군 === '대체자산' && r.세부자산군 === '인컴자산' && (!r.세부자산군2 || r.세부자산군2 === '')),
+      선진국: calcMyPfAssetSeries('선진국', (r) => r.자산군 === '주식' && r.세부자산군 === '선진국' && (!r.세부자산군2 || r.세부자산군2 === '')),
+      국내: calcMyPfAssetSeries('국내', (r) => r.자산군 === '주식' && ['국내', '신흥국'].includes(r.세부자산군) && (!r.세부자산군2 || r.세부자산군2 === '')),
+      실물자산: calcMyPfAssetSeries('실물자산', (r) => r.자산군 === '대체자산' && r.세부자산군 === '실물자산' && (!r.세부자산군2 || r.세부자산군2 === '')),
+      인컴자산: calcMyPfAssetSeries('인컴자산', (r) => r.자산군 === '대체자산' && r.세부자산군 === '인컴자산' && (!r.세부자산군2 || r.세부자산군2 === '')),
       채권: calcMyPfAssetSeries('채권', (r) => r.자산군 === '채권' && (!r.세부자산군 || r.세부자산군 === '') && (!r.세부자산군2 || r.세부자산군2 === '')),
     }
 

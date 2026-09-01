@@ -28,8 +28,24 @@ type AssetClassType = (typeof ASSET_CLASSES)[number]
 export default function InvestmentStrategyPage() {
   const [activeTab, setActiveTab] = useState('performance')
   const [selectedAsset, setSelectedAsset] = useState<AssetClassType>('선진국')
-  const [startDate, setStartDate] = useState(format(subMonths(new Date(), 12), 'yyyy-MM-dd'))
+  const [startDate, setStartDate] = useState(`${new Date().getFullYear() - 2}-12-31`)
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  const setQuickDate = (type: string) => {
+    const end = new Date()
+    setEndDate(format(end, 'yyyy-MM-dd'))
+    if (type === 'YTD') {
+      setStartDate(format(new Date(end.getFullYear(), 0, 1), 'yyyy-MM-dd'))
+    } else if (type === '1m') {
+      setStartDate(format(subMonths(end, 1), 'yyyy-MM-dd'))
+    } else if (type === '3m') {
+      setStartDate(format(subMonths(end, 3), 'yyyy-MM-dd'))
+    } else if (type === '6m') {
+      setStartDate(format(subMonths(end, 6), 'yyyy-MM-dd'))
+    } else if (type === '1Y') {
+      setStartDate(format(subMonths(end, 12), 'yyyy-MM-dd'))
+    }
+  }
 
   // 종목 탐색 상태
   const [searchTicker, setSearchTicker] = useState('360200.KS')
@@ -114,7 +130,8 @@ export default function InvestmentStrategyPage() {
         data: currentSeries.map((d) => d.MyPF),
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#10b981', width: 2.5 },
+        color: '#10b981',
+        lineStyle: { width: 2.5 },
       },
       {
         name: 'BM 누적수익률',
@@ -122,7 +139,8 @@ export default function InvestmentStrategyPage() {
         data: currentSeries.map((d) => d.BM),
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#94a3b8', width: 2, type: 'dashed' },
+        color: '#94a3b8',
+        lineStyle: { width: 2, type: 'dashed' },
       },
     ],
   }
@@ -237,7 +255,8 @@ export default function InvestmentStrategyPage() {
         data: tickerCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#38bdf8', width: 2.5 },
+        color: '#38bdf8',
+        lineStyle: { width: 2.5 },
       },
       {
         name: `${searchBm} 벤치마크`,
@@ -245,7 +264,8 @@ export default function InvestmentStrategyPage() {
         data: bmCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#94a3b8', width: 2, type: 'dashed' },
+        color: '#94a3b8',
+        lineStyle: { width: 2, type: 'dashed' },
       },
     ],
   }
@@ -348,19 +368,32 @@ export default function InvestmentStrategyPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="flex gap-1.5 mr-2">
+                {['YTD', '1m', '3m', '6m', '1Y'].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setQuickDate(t)}
+                    className="px-2 py-1 text-xs font-medium rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
+                className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
               />
               <span className="text-slate-500">~</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                onClick={(e) => 'showPicker' in HTMLInputElement.prototype && (e.target as HTMLInputElement).showPicker()}
+                className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -368,7 +401,14 @@ export default function InvestmentStrategyPage() {
           {/* 누적 수익률 차트 */}
           <Card>
             <CardHeader
-              title={`${selectedAsset} 자산군 BM 대비 누적수익률`}
+              title={(() => {
+                if (selectedAsset === '선진국') return '선진국 주식 (BM: ACE 미국S&P500, 360200)'
+                if (selectedAsset === '국내') return '국내 주식 (BM: ACE 코스피, 305050)'
+                if (selectedAsset === '실물자산') return '실물자산 (BM: ACE KRX금현물, 411060)'
+                if (selectedAsset === '인컴자산') return '인컴자산 (BM: TIGER 리츠부동산인프라, 329200)'
+                if (selectedAsset === '채권') return '채권 (BM: KODEX 국고채3년, 114460)'
+                return `${selectedAsset} (BM 대비 누적수익률)`
+              })()}
               subtitle="내 포트폴리오의 해당 자산군 수익률과 대표 벤치마크 지수의 누적 성과 비교"
             />
             <CardBody>

@@ -585,11 +585,13 @@ export function calcLiquidityAnalysis(
   cashRow.합계 = sumCash
   currentStatus.push(cashRow)
 
-  // 2. 월별 유출입 및 만기도래 집계
+  const todayStr = format(today, 'yyyy-MM-dd')
+
+  // 2. 월별 유출입 및 만기도래 집계 (미래 스케줄만 반영)
   const monthlyInflowMap = new Map<string, Map<string, number>>()
   for (const inf of inflowRows) {
-    const d = inf.거래일자 ? inf.거래일자.substring(0, 7) : ''
-    if (!d || d < currentMonth) continue
+    if (!inf.거래일자 || inf.거래일자 <= todayStr) continue
+    const d = inf.거래일자.substring(0, 7)
     const amt = inf.자금유출입 ?? inf.금액 ?? 0
     if (!monthlyInflowMap.has(d)) monthlyInflowMap.set(d, new Map())
     const curAcctMap = monthlyInflowMap.get(d)!
@@ -598,8 +600,8 @@ export function calcLiquidityAnalysis(
 
   const monthlyMaturityMap = new Map<string, Map<string, number>>()
   for (const mat of maturityRows) {
-    const d = mat.만기일 ? mat.만기일.substring(0, 7) : ''
-    if (!d || d < currentMonth) continue
+    if (!mat.만기일 || mat.만기일 <= todayStr) continue
+    const d = mat.만기일.substring(0, 7)
     if (!monthlyMaturityMap.has(d)) monthlyMaturityMap.set(d, new Map())
     const curAcctMap = monthlyMaturityMap.get(d)!
     curAcctMap.set(mat.계좌, (curAcctMap.get(mat.계좌) || 0) + mat.평가금액)
@@ -616,7 +618,7 @@ export function calcLiquidityAnalysis(
 
   for (const m of futureMonths) {
     const monthFlows = monthlyInflowMap.get(m)
-    if (m !== currentMonth && monthFlows) {
+    if (monthFlows) {
       for (const [acct, flow] of monthFlows.entries()) {
         runningTotalMap.set(acct, (runningTotalMap.get(acct) || 0) + flow)
       }
@@ -641,16 +643,14 @@ export function calcLiquidityAnalysis(
     const monthFlows = monthlyInflowMap.get(m)
     const monthMats = monthlyMaturityMap.get(m)
 
-    if (m !== currentMonth) {
-      if (monthFlows) {
-        for (const [acct, flow] of monthFlows.entries()) {
-          runningCashMap.set(acct, (runningCashMap.get(acct) || 0) + flow)
-        }
+    if (monthFlows) {
+      for (const [acct, flow] of monthFlows.entries()) {
+        runningCashMap.set(acct, (runningCashMap.get(acct) || 0) + flow)
       }
-      if (monthMats) {
-        for (const [acct, matAmt] of monthMats.entries()) {
-          runningCashMap.set(acct, (runningCashMap.get(acct) || 0) + matAmt)
-        }
+    }
+    if (monthMats) {
+      for (const [acct, matAmt] of monthMats.entries()) {
+        runningCashMap.set(acct, (runningCashMap.get(acct) || 0) + matAmt)
       }
     }
 
