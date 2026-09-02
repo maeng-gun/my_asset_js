@@ -469,10 +469,10 @@ export default function InvestmentStrategyPage() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             <Card className="md:col-span-4">
               <CardHeader title="핵심 성과 요약" subtitle="최근 5~10년 시뮬레이션 지표" />
-              <CardBody className="p-0 overflow-x-auto">
+              <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
                 <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                       <th className="py-2.5 px-3">지표</th>
                       <th className="py-2.5 px-3 text-right text-emerald-400">{activeSearchTicker}</th>
                       <th className="py-2.5 px-3 text-right text-slate-400">{searchBm}</th>

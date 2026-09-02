@@ -214,10 +214,10 @@ export default function AssetSettingsPage() {
 
       <Card>
         <CardHeader title="등록된 투자종목 목록" />
-        <CardBody className="p-0 overflow-x-auto">
+        <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
           <table className="w-full text-xs sm:text-sm text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                 <th className="py-3 px-4 text-center">행번호</th>
                 <th className="py-3 px-4">계좌</th>
                 <th className="py-3 px-4">종목코드</th>

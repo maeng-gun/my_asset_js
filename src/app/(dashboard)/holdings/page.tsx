@@ -77,10 +77,10 @@ export default function HoldingsPage() {
             title="계좌별 자산배분 현황"
             subtitle="각 계좌별 평가금액과 자산군별 비중 매트릭스"
           />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-3">자산군</th>
                   <th className="py-3 px-3">세부자산군</th>
                   <th className="py-3 px-3">세부자산군2</th>
@@ -137,10 +137,10 @@ export default function HoldingsPage() {
             title="상품별 보유현황 1"
             subtitle="자산군별 소계, 전체 합계, 개별 종목 및 환차손익 계층 표"
           />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-3">자산군</th>
                   <th className="py-3 px-3">세부자산군</th>
                   <th className="py-3 px-3">세부자산군2</th>
@@ -210,10 +210,10 @@ export default function HoldingsPage() {
             title="상품별 보유현황 2"
             subtitle="계좌별 그룹화 및 계좌 소계가 포함된 보유현황"
           />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-3">계좌</th>
                   <th className="py-3 px-3">자산군</th>
                   <th className="py-3 px-3">세부자산군</th>
@@ -285,10 +285,10 @@ export default function HoldingsPage() {
               </button>
             }
           />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-4">자산군</th>
                   <th className="py-3 px-4">세부자산군</th>
                   <th className="py-3 px-4">세부자산군2</th>

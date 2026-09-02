@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
     const startDate = searchParams.get('startDate') || '2024-01-01'
     const endDate = searchParams.get('endDate') || new Date().toISOString().substring(0, 10)
-    const assetClass = searchParams.get('assetClass') || '전체'
+    // We fetch everything here.
 
     const [
       { data: assetsMaster },
@@ -32,16 +32,15 @@ export async function GET(req: NextRequest) {
       startDate,
       endDate
     )
-
-    if (assetClass !== '전체') {
-      totalTrades = totalTrades.filter((t: any) => t['자산군'] === assetClass)
-    }
+    
+    // API should return the full set of raw trades without the "합계" row, so client can aggregate.
+    // Note: calcTotalTrading adds "합계" row, so we filter it out to prevent double counting.
+    totalTrades = totalTrades.filter((t: any) => t['상품명'] !== '합계')
 
     return NextResponse.json({
       success: true,
       startDate,
       endDate,
-      assetClass,
       totalTrades,
     })
   } catch (err: unknown) {

@@ -363,10 +363,10 @@ export default function LiquidityPage() {
             {/* 2. 유출입 내역 목록 */}
             <Card className="md:col-span-4">
               <CardHeader title="유출입 내역" subtitle="등록된 자금 유출입 스케줄" />
-              <CardBody className="p-0 overflow-x-auto max-h-96">
+              <CardBody className="p-0 overflow-auto max-h-96">
                 <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                       <th className="py-2.5 px-3">일자</th>
                       <th className="py-2.5 px-3">계좌</th>
                       <th className="py-2.5 px-3">구분</th>
@@ -407,15 +407,15 @@ export default function LiquidityPage() {
             {/* 3. 만기도래 내역 실데이터 테이블 */}
             <Card className="md:col-span-5">
               <CardHeader title="만기도래 내역" subtitle="채권/ELS 만기 예정 자산" />
-              <CardBody className="p-0 overflow-x-auto max-h-96">
+              <CardBody className="p-0 overflow-auto max-h-96">
                 {maturityList.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 text-xs">
                     현재 등록된 만기도래 예정 상품이 없습니다.
                   </div>
                 ) : (
                   <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                         <th className="py-2.5 px-3">계좌</th>
                         <th className="py-2.5 px-3">종목명</th>
                         <th className="py-2.5 px-3 text-right">평가금액</th>
@@ -448,10 +448,10 @@ export default function LiquidityPage() {
           {/* 1. 총자산 현황 테이블 */}
           <Card>
             <CardHeader title="계좌별 총자산 및 현금성자산 현황" subtitle="현재 시점의 계좌별 총자산 잔액" />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">구분</th>
                     {ALLOCATION_ACCOUNTS.map((a) => (
                       <th key={a} className="py-3 px-3 text-right">
@@ -488,10 +488,10 @@ export default function LiquidityPage() {
           {/* 2. 월별 총자산 시계열 투사 테이블 */}
           <Card>
             <CardHeader title="월별 총자산 시계열 투사 (Total Projection)" subtitle="유출입 누적을 반영한 미래 총자산 추이" />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">거래월</th>
                     {ALLOCATION_ACCOUNTS.map((a) => (
                       <th key={a} className="py-3 px-3 text-right">
@@ -535,10 +535,10 @@ export default function LiquidityPage() {
               title="월별 가용자금 및 현금성자산 투사 (Cash Projection)"
               subtitle="유출입 및 만기도래 자금 유입을 반영한 계좌별 현금 유동성 추이"
             />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">거래월</th>
                     {ALLOCATION_ACCOUNTS.map((a) => (
                       <th key={a} className="py-3 px-3 text-right">

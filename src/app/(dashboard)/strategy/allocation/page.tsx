@@ -183,10 +183,10 @@ export default function AllocationStrategyPage() {
           {/* 목표 배분비중 기준 테이블 */}
           <Card>
             <CardHeader title="전략별 자산배분 모델 (allo_table)" subtitle="DB에 등록된 자산배분 목표 비중" />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">구분</th>
                     <th className="py-3 px-4 text-right">국내주식</th>
                     <th className="py-3 px-4 text-right">해외주식</th>
@@ -223,10 +223,10 @@ export default function AllocationStrategyPage() {
               title="자산배분 전략 백테스팅 성과 비교"
               subtitle="SAA, TAA1, TAA2 전략 모델의 장기 기대수익률 및 리스크 지표"
             />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">전략명</th>
                     <th className="py-3 px-4 text-right">연환산수익률(%)</th>
                     <th className="py-3 px-4 text-right">연환산변동성(%)</th>

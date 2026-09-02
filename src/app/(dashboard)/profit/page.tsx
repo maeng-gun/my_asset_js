@@ -171,10 +171,10 @@ export default function ProfitPage() {
               title="연도별 종합손익"
               subtitle="장부금액, 평잔, 평가금액, 실현손익, 평가손익증감 및 총수익률"
             />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">연도</th>
                     <th className="py-3 px-4 text-right">장부금액</th>
                     <th className="py-3 px-4 text-right">평잔</th>
@@ -259,10 +259,10 @@ export default function ProfitPage() {
               title="손익변동 (기간별 비교)"
               subtitle="자산군별 1일, 1개월, 3개월, 6개월, 1년 전 대비 손익 및 수익률 변동"
             />
-            <CardBody className="p-0 overflow-x-auto">
+            <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-3">자산군</th>
                     <th className="py-3 px-3">세부자산군</th>
                     <th className="py-3 px-3">세부자산군2</th>
@@ -457,10 +457,10 @@ export default function ProfitPage() {
       {activeTab === 'by-asset' && (
         <Card>
           <CardHeader title="자산군별 손익현황" subtitle="자산군 > 세부자산군 > 세부자산군2 계층별 손익 명세" />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-4">자산군</th>
                   <th className="py-3 px-4">세부자산군</th>
                   <th className="py-3 px-4">세부자산군2</th>
@@ -524,10 +524,10 @@ export default function ProfitPage() {
       {activeTab === 'by-account' && (
         <Card>
           <CardHeader title="계좌별 손익현황" subtitle="계좌별 및 계좌 x 자산군별 손익 요약" />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-4">계좌</th>
                   <th className="py-3 px-4">자산군</th>
                   <th className="py-3 px-4 text-right">장부금액</th>
@@ -589,10 +589,10 @@ export default function ProfitPage() {
       {activeTab === 'by-account-item' && (
         <Card>
           <CardHeader title="계좌별 상품 손익 상세" subtitle="계좌 x 통화 x 자산군 x 상품명 기준 손익" />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-3">계좌</th>
                   <th className="py-3 px-3">통화</th>
                   <th className="py-3 px-3">자산군</th>
@@ -648,10 +648,10 @@ export default function ProfitPage() {
       {activeTab === 'by-asset-item' && (
         <Card>
           <CardHeader title="자산군별 상품 손익 상세" subtitle="자산군 x 세부자산군 x 상품명 x 계좌 기준 손익" />
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs sm:text-sm text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-medium">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                   <th className="py-3 px-3">자산군</th>
                   <th className="py-3 px-3">세부자산군</th>
                   <th className="py-3 px-3">세부자산군2</th>
