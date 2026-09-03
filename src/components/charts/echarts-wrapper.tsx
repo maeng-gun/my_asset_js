@@ -21,27 +21,30 @@ export function EChartsWrapper({
   }, [])
 
   // Process option to force dual y-axis mirroring
-  const processedOption = mounted ? JSON.parse(JSON.stringify(option)) : option
-  if (mounted && processedOption.yAxis) {
-    if (!Array.isArray(processedOption.yAxis)) {
-      processedOption.yAxis = [processedOption.yAxis]
-    }
-    if (processedOption.yAxis.length === 1) {
-      processedOption.yAxis.push({
-        ...processedOption.yAxis[0],
+  let processedOption = option
+  if (mounted && option.yAxis) {
+    processedOption = { ...option }
+    let yAxis = Array.isArray(option.yAxis) ? [...option.yAxis] : [{...option.yAxis}]
+    yAxis = yAxis.map(y => ({...y}))
+
+    if (yAxis.length === 1) {
+      yAxis.push({
+        ...yAxis[0],
         position: 'right',
         alignTicks: true
       })
-      processedOption.yAxis[0].position = 'left'
-    } else if (processedOption.yAxis.length >= 2) {
-      processedOption.yAxis[1].position = 'right'
-      processedOption.yAxis[1].alignTicks = true
-      processedOption.yAxis[0].position = 'left'
+      yAxis[0].position = 'left'
+    } else if (yAxis.length >= 2) {
+      yAxis[1].position = 'right'
+      yAxis[1].alignTicks = true
+      yAxis[0].position = 'left'
     }
+    processedOption.yAxis = yAxis
 
-    if (processedOption.series && Array.isArray(processedOption.series)) {
+    if (option.series && Array.isArray(option.series)) {
+      const series = option.series.map((s: any) => ({...s}))
       const extraSeries: any[] = []
-      processedOption.series.forEach((s: any) => {
+      series.forEach((s: any) => {
         if (!s.yAxisIndex || s.yAxisIndex === 0) {
           extraSeries.push({
             ...s,
@@ -57,7 +60,7 @@ export function EChartsWrapper({
           })
         }
       })
-      processedOption.series = [...processedOption.series, ...extraSeries]
+      processedOption.series = [...series, ...extraSeries]
     }
   }
 

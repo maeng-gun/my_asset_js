@@ -22,9 +22,11 @@ import {
   X,
   Tag,
   MoreVertical,
+  LayoutDashboard,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
+  { name: '대시보드', href: '/dashboard', icon: LayoutDashboard },
   { name: '손익현황', href: '/profit', icon: LineChart },
   { name: '보유현황', href: '/holdings', icon: Coins },
   { name: '운용기록', href: '/trading', icon: Receipt },
@@ -157,7 +159,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* 로고 및 앱 타이틀 */}
           <div className="flex items-center gap-3">
-            <Link href="/profit" className="flex items-center gap-2.5 group">
+            <Link href="/dashboard" className="flex items-center gap-2.5 group">
               <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner group-hover:scale-105 transition">
                 <TrendingUp className="w-5 h-5" />
               </div>
@@ -170,7 +172,7 @@ export function Navbar() {
             <nav className="hidden lg:flex items-center gap-1 ml-6">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon
-                const isActive = pathname === item.href || (item.href !== '/profit' && pathname.startsWith(item.href))
+                const isActive = pathname === item.href || (item.href !== '/profit' && item.href !== '/dashboard' && pathname.startsWith(item.href))
                 return (
                   <Link
                     key={item.name}
@@ -235,7 +237,7 @@ export function Navbar() {
         <div className="lg:hidden border-t border-slate-800 bg-slate-900/95 px-4 pt-3 pb-5 space-y-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || (item.href !== '/profit' && pathname.startsWith(item.href))
+            const isActive = pathname === item.href || (item.href !== '/profit' && item.href !== '/dashboard' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.name}

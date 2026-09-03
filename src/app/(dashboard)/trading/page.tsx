@@ -626,31 +626,31 @@ const deleteTradeMutation = useMutation({
               <div>
                 <label className="text-slate-400 font-medium block mb-1">자산군</label>
                 <select value={selAssetClass} onChange={(e) => { setSelAssetClass(e.target.value); setSelAssetClass1('전체'); setSelAssetClass2('전체'); setSelAccount('전체'); setSelProductName('전체'); }} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200">
-                  {processedData.options.assetClasses?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(processedData.options as any).assetClasses?.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-slate-400 font-medium block mb-1">세부자산군</label>
                 <select value={selAssetClass1} onChange={(e) => { setSelAssetClass1(e.target.value); setSelAssetClass2('전체'); setSelAccount('전체'); setSelProductName('전체'); }} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200">
-                  {processedData.options.assetClasses1?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(processedData.options as any).assetClasses1?.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-slate-400 font-medium block mb-1">세부자산군2</label>
                 <select value={selAssetClass2} onChange={(e) => { setSelAssetClass2(e.target.value); setSelAccount('전체'); setSelProductName('전체'); }} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200">
-                  {processedData.options.assetClasses2?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(processedData.options as any).assetClasses2?.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-slate-400 font-medium block mb-1">계좌</label>
                 <select value={selAccount} onChange={(e) => { setSelAccount(e.target.value); setSelProductName('전체'); }} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200">
-                  {processedData.options.accounts?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(processedData.options as any).accounts?.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-slate-400 font-medium block mb-1">상품명</label>
                 <select value={selProductName} onChange={(e) => setSelProductName(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200">
-                  {processedData.options.products?.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {(processedData.options as any).products?.map((o: string) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
             </div>
