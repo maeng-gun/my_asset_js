@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { QueryProvider } from '@/components/providers/query-provider'
+import { ServiceWorkerRegistrar } from '@/components/providers/sw-registrar'
 import { Toaster } from 'sonner'
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-slate-100 min-h-screen selection:bg-emerald-500 selection:text-white`}
       >
         <QueryProvider>
+          <ServiceWorkerRegistrar />
           {children}
           <Toaster
             position="bottom-center"
