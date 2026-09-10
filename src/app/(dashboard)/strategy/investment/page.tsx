@@ -6,7 +6,8 @@ import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
 import { EChartsWrapper } from '@/components/charts/echarts-wrapper'
 import { formatPercent } from '@/lib/utils'
-import { subMonths, format } from 'date-fns'
+import { subMonths, subYears, format } from 'date-fns'
+import { getAllTickers } from '@/lib/actions/db'
 import {
   TrendingUp,
   Search,
@@ -19,7 +20,7 @@ import {
 
 const TABS: TabItem[] = [
   { id: 'performance', label: '투자성과 (자산군별 BM 대비)', icon: TrendingUp },
-  { id: 'search', label: '종목탐색 (10년 정밀분석)', icon: Search },
+  { id: 'search', label: '종목탐색 (장기 정밀분석)', icon: Search },
 ]
 
 const ASSET_CLASSES = ['선진국', '국내', '실물자산', '인컴자산', '채권'] as const
@@ -28,7 +29,7 @@ type AssetClassType = (typeof ASSET_CLASSES)[number]
 export default function InvestmentStrategyPage() {
   const [activeTab, setActiveTab] = useState('performance')
   const [selectedAsset, setSelectedAsset] = useState<AssetClassType>('선진국')
-  const [startDate, setStartDate] = useState(`${new Date().getFullYear() - 2}-12-31`)
+  const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const setQuickDate = (type: string) => {
@@ -43,14 +44,44 @@ export default function InvestmentStrategyPage() {
     } else if (type === '6m') {
       setStartDate(format(subMonths(end, 6), 'yyyy-MM-dd'))
     } else if (type === '1Y') {
-      setStartDate(format(subMonths(end, 12), 'yyyy-MM-dd'))
+      setStartDate(format(subYears(end, 1), 'yyyy-MM-dd'))
+    } else if (type === '2Y') {
+      setStartDate(format(subYears(end, 2), 'yyyy-MM-dd'))
+    } else if (type === '3Y') {
+      setStartDate(format(subYears(end, 3), 'yyyy-MM-dd'))
+    } else if (type === '5Y') {
+      setStartDate(format(subYears(end, 5), 'yyyy-MM-dd'))
+    } else if (type === '10Y') {
+      setStartDate(format(subYears(end, 10), 'yyyy-MM-dd'))
     }
   }
 
   // 종목 탐색 상태
-  const [searchTicker, setSearchTicker] = useState('360200.KS')
+  const [searchTicker, setSearchTicker] = useState('')
   const [searchBm, setSearchBm] = useState('226490.KS')
-  const [activeSearchTicker, setActiveSearchTicker] = useState('360200.KS')
+  const [activeSearchTicker, setActiveSearchTicker] = useState('')
+  const [searchStartDate, setSearchStartDate] = useState(format(new Date(new Date().getFullYear() - 5, 0, 1), 'yyyy-MM-dd'))
+  const [searchEndDate, setSearchEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [activeSearchStartDate, setActiveSearchStartDate] = useState(format(new Date(new Date().getFullYear() - 5, 0, 1), 'yyyy-MM-dd'))
+  const [activeSearchEndDate, setActiveSearchEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  // 전체 종목 목록 로드
+  const { data: tickersData } = useQuery({
+    queryKey: ['all-tickers'],
+    queryFn: async () => {
+      const data = await getAllTickers()
+      return data as { 티커: string; 종목명: string }[]
+    },
+  })
+
+  const getDisplayName = (ticker: string) => {
+    if (!ticker) return '종목을 선택해주세요'
+    const cleanTicker = ticker.replace(/\.KS$/, '')
+    const found = tickersData?.find((t) => t.티커 === ticker)
+    return found ? `${found.종목명}(${cleanTicker})` : cleanTicker
+  }
+  const activeTickerDisplay = getDisplayName(activeSearchTicker)
+  const bmDisplay = searchBm === '226490.KS' ? 'KODEX 코스피(226490)' : searchBm === '360750.KS' ? 'TIGER 미국S&P500(360750)' : getDisplayName(searchBm)
 
   // 1. 5대 자산군 투자성과 API 쿼리
   const { data: perfData, isLoading: isPerfLoading } = useQuery({
@@ -67,10 +98,10 @@ export default function InvestmentStrategyPage() {
 
   // 2. 종목 탐색 정밀 분석 API 쿼리 (외부 API 연동)
   const { data: tickerData, isLoading: isTickerLoading, refetch: refetchTicker } = useQuery({
-    queryKey: ['ticker-analysis', activeSearchTicker, searchBm],
+    queryKey: ['ticker-analysis', activeSearchTicker, searchBm, activeSearchStartDate, activeSearchEndDate],
     queryFn: async () => {
       const res = await fetch(
-        `/api/ticker?ticker=${activeSearchTicker}&benchmark=${searchBm}`
+        `/api/ticker?ticker=${activeSearchTicker}&benchmark=${searchBm}&startDate=${activeSearchStartDate}&endDate=${activeSearchEndDate}`
       )
       if (!res.ok) throw new Error('종목 분석 데이터 로드 실패')
       const json = await res.json()
@@ -216,7 +247,7 @@ export default function InvestmentStrategyPage() {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: {
-      data: [`${activeSearchTicker} 누적수익률`, `${searchBm} 벤치마크`],
+      data: [`${activeTickerDisplay} 누적수익률`, `${bmDisplay} 벤치마크`],
       textStyle: { color: '#94a3b8' },
       right: '2%',
       top: '5%',
@@ -250,7 +281,7 @@ export default function InvestmentStrategyPage() {
   ],
     series: [
       {
-        name: `${activeSearchTicker} 누적수익률`,
+        name: `${activeTickerDisplay} 누적수익률`,
         type: 'line',
         data: tickerCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
@@ -259,7 +290,7 @@ export default function InvestmentStrategyPage() {
         lineStyle: { width: 2.5 },
       },
       {
-        name: `${searchBm} 벤치마크`,
+        name: `${bmDisplay} 벤치마크`,
         type: 'line',
         data: bmCumList.map((val: number) => Number((val * 100).toFixed(2))),
         smooth: true,
@@ -339,6 +370,158 @@ export default function InvestmentStrategyPage() {
     ],
   }
 
+  // 4. 연도별 수익률 막대 차트
+  const yearlyRetList = tickerData?.yearlyRet || []
+  const yearlyChartOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: {
+      data: [`${activeTickerDisplay}`, `${bmDisplay}`],
+      textStyle: { color: '#94a3b8' },
+      right: '2%',
+      top: '5%',
+    },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '18%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: yearlyRetList.map((d: any) => d.year),
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    yAxis: {
+      type: 'value',
+      name: '수익률(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [
+      {
+        name: `${activeTickerDisplay}`,
+        type: 'bar',
+        data: yearlyRetList.map((d: any) => d.ticker),
+        itemStyle: { color: '#38bdf8' },
+      },
+      {
+        name: `${bmDisplay}`,
+        type: 'bar',
+        data: yearlyRetList.map((d: any) => d.bm),
+        itemStyle: { color: '#94a3b8' },
+      },
+    ],
+  }
+
+  // 5. 월별 수익률 히트맵 차트
+  const monthlyRetList = tickerData?.monthlyRet || []
+  const years = Array.from(new Set(monthlyRetList.map((d: any) => d.year)))
+  const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
+  
+  const heatmapData = monthlyRetList.map((d: any) => [
+    months.indexOf(`${d.month}월`),
+    years.indexOf(d.year),
+    d.ret
+  ])
+
+  const heatmapChartOption = {
+    backgroundColor: 'transparent',
+    tooltip: { position: 'top', formatter: (p: any) => `${years[p.data[1]]}년 ${months[p.data[0]]}: ${p.data[2].toFixed(2)}%` },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '5%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: months,
+      splitArea: { show: true },
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    yAxis: {
+      type: 'category',
+      data: years,
+      splitArea: { show: true },
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    visualMap: {
+      min: -15,
+      max: 15,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: '0%',
+      inRange: { color: ['#f43f5e', '#1e293b', '#10b981'] },
+      textStyle: { color: '#94a3b8' }
+    },
+    series: [{
+      name: '월별 수익률',
+      type: 'heatmap',
+      data: heatmapData,
+      label: { show: true, formatter: (p: any) => p.data[2].toFixed(1), color: '#ffffff', fontSize: 10 },
+      itemStyle: { borderColor: '#0f172a', borderWidth: 2 }
+    }]
+  }
+
+  // 6. 롤링 변동성
+  const rollingVolList = tickerData?.rollingVol || []
+  const rollingVolOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '18%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: rollingVolList.map((d: any) => d.date),
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '연환산 변동성(%)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [{
+      name: '롤링 변동성(3Y)',
+      type: 'line',
+      data: rollingVolList.map((d: any) => d.vol),
+      smooth: true,
+      symbol: 'none',
+      color: '#f59e0b',
+      lineStyle: { width: 1.5 }
+    }]
+  }
+
+  // 7. 롤링 샤프지수
+  const rollingSharpeList = tickerData?.rollingSharpe || []
+  const rollingSharpeOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis' },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '18%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: rollingSharpeList.map((d: any) => d.date),
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '샤프지수',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [{
+      name: '롤링 샤프지수(3Y)',
+      type: 'line',
+      data: rollingSharpeList.map((d: any) => d.sharpe),
+      smooth: true,
+      symbol: 'none',
+      color: '#8b5cf6',
+      lineStyle: { width: 1.5 }
+    }]
+  }
+
   return (
     <div className="space-y-6">
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
@@ -369,7 +552,7 @@ export default function InvestmentStrategyPage() {
 
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5 mr-2">
-                {['YTD', '1m', '3m', '6m', '1Y'].map((t) => (
+                {['YTD', '1m', '3m', '6m', '1Y', '2Y', '3Y', '5Y'].map((t) => (
                   <button
                     key={t}
                     onClick={() => setQuickDate(t)}
@@ -433,36 +616,109 @@ export default function InvestmentStrategyPage() {
       {activeTab === 'search' && (
         <div className="space-y-6">
           {/* 종목 및 BM 검색 바 */}
-          <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs">
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-300 font-medium">분석 종목코드:</span>
-              <input
-                type="text"
-                value={searchTicker}
-                onChange={(e) => setSearchTicker(e.target.value)}
-                placeholder="예: 360200.KS, SPY"
-                className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-emerald-500 uppercase"
-              />
+          <div className="flex flex-col gap-4 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-emerald-400" />
+                <span className="text-slate-300 font-medium">분석 종목:</span>
+                <input
+                  type="text"
+                  list="tickers-list"
+                  value={searchTicker}
+                  onChange={(e) => setSearchTicker(e.target.value)}
+                  placeholder="예: 360200.KS, 삼성전자"
+                  className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 min-w-[200px]"
+                />
+                <datalist id="tickers-list">
+                  {tickersData?.map((t) => (
+                    <option key={t.티커} value={`${t.종목명} (${t.티커.replace(/\.KS$/, '')})`} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">비교 벤치마크:</span>
+                <div className="flex gap-3 items-center">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="searchBm"
+                      value="226490.KS"
+                      checked={searchBm === '226490.KS'}
+                      onChange={(e) => setSearchBm(e.target.value)}
+                      className="accent-emerald-500"
+                    />
+                    <span className="text-slate-300">코스피</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="searchBm"
+                      value="360750.KS"
+                      checked={searchBm === '360750.KS'}
+                      onChange={(e) => setSearchBm(e.target.value)}
+                      className="accent-emerald-500"
+                    />
+                    <span className="text-slate-300">S&P500</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-medium">비교 벤치마크:</span>
-              <input
-                type="text"
-                value={searchBm}
-                onChange={(e) => setSearchBm(e.target.value)}
-                placeholder="예: 226490.KS, SPY"
-                className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-emerald-500 uppercase"
-              />
-            </div>
+            <div className="flex flex-wrap items-center gap-4 justify-between border-t border-slate-800/50 pt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" /> 시뮬레이션 기간:
+                </span>
+                <div className="flex gap-1.5 mr-2">
+                  {['YTD', '3Y', '5Y', '10Y'].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        const end = new Date();
+                        setSearchEndDate(format(end, 'yyyy-MM-dd'));
+                        if (t === 'YTD') setSearchStartDate(format(new Date(end.getFullYear(), 0, 1), 'yyyy-MM-dd'));
+                        else if (t === '3Y') setSearchStartDate(format(new Date(end.getFullYear() - 3, 0, 1), 'yyyy-MM-dd'));
+                        else if (t === '5Y') setSearchStartDate(format(new Date(end.getFullYear() - 5, 0, 1), 'yyyy-MM-dd'));
+                        else if (t === '10Y') setSearchStartDate(format(new Date(end.getFullYear() - 10, 0, 1), 'yyyy-MM-dd'));
+                      }}
+                      className="px-2 py-1 text-xs font-medium rounded bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition"
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="date"
+                  value={searchStartDate}
+                  onChange={(e) => setSearchStartDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+                <span className="text-slate-500">~</span>
+                <input
+                  type="date"
+                  value={searchEndDate}
+                  onChange={(e) => setSearchEndDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
 
-            <button
-              onClick={() => setActiveSearchTicker(searchTicker.trim())}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-semibold shadow-lg shadow-emerald-950/40 transition active:scale-95 ml-auto"
-            >
-              정밀 분석 실행
-            </button>
+              <button
+                onClick={() => {
+                  const match = searchTicker.match(/\(([^)]+)\)$/);
+                  let parsedTicker = match ? match[1] : searchTicker.trim();
+                  if (/^\d{6}$/.test(parsedTicker)) {
+                    parsedTicker += '.KS';
+                  }
+                  setActiveSearchTicker(parsedTicker);
+                  setActiveSearchStartDate(searchStartDate);
+                  setActiveSearchEndDate(searchEndDate);
+                }}
+                className="px-6 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-semibold shadow-lg shadow-emerald-950/40 transition active:scale-95"
+              >
+                정밀 분석 실행
+              </button>
+            </div>
           </div>
 
           {/* 11개 핵심 금융 통계 지표 카드 & 테이블 */}
@@ -474,8 +730,8 @@ export default function InvestmentStrategyPage() {
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                       <th className="py-2.5 px-3">지표</th>
-                      <th className="py-2.5 px-3 text-right text-emerald-400">{activeSearchTicker}</th>
-                      <th className="py-2.5 px-3 text-right text-slate-400">{searchBm}</th>
+                      <th className="py-2.5 px-3 text-right text-emerald-400">{activeTickerDisplay}</th>
+                      <th className="py-2.5 px-3 text-right text-slate-400">{bmDisplay}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -510,7 +766,7 @@ export default function InvestmentStrategyPage() {
             <div className="md:col-span-8 space-y-6">
               <Card>
                 <CardHeader
-                  title={`${activeSearchTicker} vs ${searchBm} 누적수익률 비교`}
+                  title={`${activeTickerDisplay} vs ${bmDisplay} 누적수익률 비교`}
                   subtitle="장기 시계열 성과 추세 비교"
                 />
                 <CardBody>
@@ -520,13 +776,57 @@ export default function InvestmentStrategyPage() {
 
               <Card>
                 <CardHeader
-                  title={`${activeSearchTicker} 고점 대비 낙폭 (Drawdown)`}
+                  title={`${activeTickerDisplay} 고점 대비 낙폭 (Drawdown)`}
                   subtitle="MDD 및 리스크 관리 분석"
                 />
                 <CardBody>
                   <EChartsWrapper option={tickerDDChartOption} height="220px" />
                 </CardBody>
               </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader
+                    title="연도별 수익률 비교"
+                    subtitle="최근 연도별 성과(Calendar Year)"
+                  />
+                  <CardBody>
+                    <EChartsWrapper option={yearlyChartOption} height="300px" />
+                  </CardBody>
+                </Card>
+
+                <Card>
+                  <CardHeader
+                    title="월별 수익률 히트맵"
+                    subtitle="계절성 및 월간 수익률 분포"
+                  />
+                  <CardBody>
+                    <EChartsWrapper option={heatmapChartOption} height="300px" />
+                  </CardBody>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader
+                    title="롤링 변동성 (3Y)"
+                    subtitle="시간 흐름에 따른 리스크 변동"
+                  />
+                  <CardBody>
+                    <EChartsWrapper option={rollingVolOption} height="220px" />
+                  </CardBody>
+                </Card>
+
+                <Card>
+                  <CardHeader
+                    title="롤링 샤프지수 (3Y)"
+                    subtitle="위험 대비 수익률 추세"
+                  />
+                  <CardBody>
+                    <EChartsWrapper option={rollingSharpeOption} height="220px" />
+                  </CardBody>
+                </Card>
+              </div>
             </div>
           </div>
         </div>
