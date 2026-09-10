@@ -2,7 +2,7 @@
   "name": "포트폴리오 관리",
   "short_name": "가족자산관리",
   "description": "실시간 포트폴리오 및 자산배분 관리 웹앱",
-  "start_url": "/dashboard",
+  "start_url": "/auth/login",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
