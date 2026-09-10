@@ -461,31 +461,11 @@ const deleteTradeMutation = useMutation({
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-400 font-medium block mb-1">이자배당액</label>
-                  <input
-                    type="number"
-                    value={dividend || ''}
-                    onChange={(e) => setDividend(parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
-                  />
-                </div>
-
-                <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">현금수입</label>
                   <input
                     type="number"
                     value={cashIn || ''}
                     onChange={(e) => setCashIn(parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-400 font-medium block mb-1">입출금</label>
-                  <input
-                    type="number"
-                    value={inOut || ''}
-                    onChange={(e) => setInOut(parseFloat(e.target.value) || 0)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
                   />
                 </div>
