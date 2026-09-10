@@ -13,6 +13,14 @@ export async function getTickers(type: '투자자산' | '연금자산') {
   return data || []
 }
 
+export async function getAllTickers() {
+  const supabase = createAdminClient()
+  const { data, error } = await fetchAll(supabase, 'tickers', '티커')
+  if (error) throw new Error(`[getAllTickers] ${error.message}`)
+  
+  return data || []
+}
+
 export async function getTradeHistory(type: '투자자산' | '연금자산', account: string, currency: string, limitCount: number = 30) {
   const supabase = createAdminClient()
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'

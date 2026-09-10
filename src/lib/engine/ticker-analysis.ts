@@ -33,6 +33,10 @@ export interface TickerAnalysisResult {
     target: TickerStats
     benchmark: TickerStats
   }
+  yearlyRet?: { year: number; ticker: number; bm: number }[]
+  monthlyRet?: { year: number; month: number; ret: number }[]
+  rollingVol?: { date: string; vol: number }[]
+  rollingSharpe?: { date: string; sharpe: number }[]
 }
 
 function toYfSymbol(ticker: string): string {
@@ -142,15 +146,85 @@ export async function buildTickerAnalysisData(
   }
 
   // 배열 길이를 맞추기 위해 누적수익률 앞에 0 추가 (시작점)
+  const fullDates = [alignedDates[0], ...alignedDates.slice(1)]
+  const fullTCumReturns = [0, ...tCumReturns]
+  const fullBCumReturns = [0, ...bCumReturns]
+
+  // 4. 연도별 수익률, 월별 수익률 히트맵 데이터 계산
+  const yearlyRetMap = new Map<number, { tRet: number, bRet: number }>()
+  const monthlyRetMap = new Map<string, number>()
+
+  // 일별 수익률을 통해 연도/월별 누적 수익률 계산
+  let currentYear = parseISO(alignedDates[1]).getFullYear()
+  let currentMonth = parseISO(alignedDates[1]).getMonth() + 1
+  let tMonthProd = 1
+  let tYearProd = 1
+  let bYearProd = 1
+
+  for (let i = 0; i < tReturns.length; i++) {
+    const d = parseISO(alignedDates[i + 1])
+    const year = d.getFullYear()
+    const month = d.getMonth() + 1
+
+    if (year !== currentYear) {
+      yearlyRetMap.set(currentYear, { tRet: (tYearProd - 1) * 100, bRet: (bYearProd - 1) * 100 })
+      tYearProd = 1
+      bYearProd = 1
+      currentYear = year
+    }
+    
+    if (month !== currentMonth || year !== parseISO(alignedDates[i]).getFullYear()) {
+      monthlyRetMap.set(`${parseISO(alignedDates[i]).getFullYear()}-${String(currentMonth).padStart(2, '0')}`, (tMonthProd - 1) * 100)
+      tMonthProd = 1
+      currentMonth = month
+    }
+
+    tMonthProd *= (1 + tReturns[i])
+    tYearProd *= (1 + tReturns[i])
+    bYearProd *= (1 + bReturns[i])
+  }
+  // 마지막 구간 처리
+  yearlyRetMap.set(currentYear, { tRet: (tYearProd - 1) * 100, bRet: (bYearProd - 1) * 100 })
+  monthlyRetMap.set(`${currentYear}-${String(currentMonth).padStart(2, '0')}`, (tMonthProd - 1) * 100)
+
+  const yearlyRet = Array.from(yearlyRetMap.entries()).map(([year, rets]) => ({
+    year,
+    ticker: rets.tRet,
+    bm: rets.bRet
+  }))
+
+  const monthlyRet = Array.from(monthlyRetMap.entries()).map(([ym, ret]) => {
+    const [year, month] = ym.split('-')
+    return { year: parseInt(year), month: parseInt(month), ret }
+  })
+
+  // 5. 롤링 변동성 및 샤프 지수 계산 (윈도우 756일 = 약 3년)
+  const windowSize = 756
+  const rollingVol: { date: string, vol: number }[] = []
+  const rollingSharpe: { date: string, sharpe: number }[] = []
+
+  for (let i = windowSize; i < tReturns.length; i++) {
+    const windowReturns = tReturns.slice(i - windowSize, i)
+    const vol = calculateAnnualizedVolatility(windowReturns)
+    const sharpe = calculateSharpeRatio(windowReturns)
+    
+    rollingVol.push({ date: alignedDates[i + 1], vol: vol * 100 })
+    rollingSharpe.push({ date: alignedDates[i + 1], sharpe })
+  }
+
   return {
     ticker,
     benchmark,
-    dates: [alignedDates[0], ...alignedDates.slice(1)], // 첫날도 포함
-    tickerCumReturns: [0, ...tCumReturns], // 0%에서 시작
-    benchmarkCumReturns: [0, ...bCumReturns], // 0%에서 시작
+    dates: fullDates,
+    tickerCumReturns: fullTCumReturns,
+    benchmarkCumReturns: fullBCumReturns,
     stats: {
       target: targetStats,
       benchmark: bmStats,
-    }
+    },
+    yearlyRet,
+    monthlyRet,
+    rollingVol,
+    rollingSharpe
   }
 }

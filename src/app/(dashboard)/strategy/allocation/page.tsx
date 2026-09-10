@@ -52,45 +52,88 @@ export default function AllocationStrategyPage() {
     },
   })
 
-  // 현재 포트폴리오의 6대 자산군 비중 집계
-  const currentRatioMap = new Map<string, number>()
-  const tComm3 = (summary?.t_comm3 || []) as any[]
-  const totalEval = tComm3.find((r) => r.자산군 === '<합계>')?.평가금액 || 1
+  // 현재 포트폴리오의 6대 자산군 비중 집계 (대시보드와 동일한 논리 적용)
+  const tComm = (summary?.t_comm || []) as any[]
+  const totalEval = tComm.find((r) => r.자산군 === '<합계>')?.평가금액 || 1
 
-  for (const r of tComm3) {
-    if (r.자산군 && r.자산군 !== '<합계>' && (!r.세부자산군 || r.세부자산군 === '')) {
-      const p = Number(((r.평가금액 / totalEval) * 100).toFixed(1))
-      currentRatioMap.set(r.자산군, p)
-    }
+  const subGroupsArray = tComm.filter((d: any) => d.세부자산군 && !d.세부자산군2 && !d.상품명 && d.자산군 !== '<합계>')
+
+  let domesticStockAmt = 0
+  let foreignStockAmt = 0
+  let maturityBondAmt = 0
+  let marketBondAmt = 0
+  let realAssetAmt = 0
+  let incomeAssetAmt = 0
+
+  for (const r of subGroupsArray) {
+    if (r.세부자산군 === '국내' || r.세부자산군 === '신흥국') domesticStockAmt += r.평가금액
+    if (r.세부자산군 === '선진국') foreignStockAmt += r.평가금액
+    if (r.세부자산군 === '만기보유') maturityBondAmt += r.평가금액
+    if (r.세부자산군 === '시장형') marketBondAmt += r.평가금액
+    if (r.세부자산군 === '실물자산') realAssetAmt += r.평가금액
+    if (r.세부자산군 === '인컴자산') incomeAssetAmt += r.평가금액
+  }
+
+  const currentAmtMap = {
+    '국내주식': domesticStockAmt,
+    '해외주식': foreignStockAmt,
+    '만기보유채권': maturityBondAmt,
+    '시장형채권': marketBondAmt,
+    '실물자산': realAssetAmt,
+    '인컴자산': incomeAssetAmt,
+  }
+
+  const sumOtherAmt = Object.values(currentAmtMap).reduce((a, b) => a + b, 0)
+  const cashAmt = Math.max(0, totalEval - sumOtherAmt)
+
+  const currentRatioMap = {
+    '국내주식': (domesticStockAmt / totalEval) * 100,
+    '해외주식': (foreignStockAmt / totalEval) * 100,
+    '만기보유채권': (maturityBondAmt / totalEval) * 100,
+    '시장형채권': (marketBondAmt / totalEval) * 100,
+    '실물자산': (realAssetAmt / totalEval) * 100,
+    '인컴자산': (incomeAssetAmt / totalEval) * 100,
+    '현금성자산': (cashAmt / totalEval) * 100,
   }
 
   const targetPlan = (alloRows || []).find((r) => r.구분 === selectedStrategy) || {
-    국내주식: 10,
-    해외주식: 35,
-    만기보유채권: 15,
-    시장형채권: 15,
-    실물자산: 15,
-    인컴자산: 10,
+    국내주식: 19.5,
+    해외주식: 45.5,
+    만기보유채권: 17.4,
+    시장형채권: 2.6,
+    실물자산: 8.45,
+    인컴자산: 4.55,
   }
 
+  const targetCashRatio = Math.max(0, 100 - (targetPlan.국내주식 + targetPlan.해외주식 + targetPlan.만기보유채권 + targetPlan.시장형채권 + targetPlan.실물자산 + targetPlan.인컴자산))
+
   // 현재 vs 목표 비교 차트 옵션
-  const compareCategories = ['국내주식', '해외주식', '만기보유채권', '시장형채권', '실물자산', '인컴자산']
+  const compareCategories = ['해외주식', '국내주식', '실물자산', '인컴자산', '만기보유채권', '시장형채권', '현금성자산']
   const currentVals = [
-    currentRatioMap.get('국내') || 8.5,
-    currentRatioMap.get('선진국') || 38.2,
-    14.0,
-    12.5,
-    currentRatioMap.get('대체자산') ? currentRatioMap.get('대체자산')! / 2 : 16.0,
-    10.8,
-  ]
+    currentRatioMap['해외주식'],
+    currentRatioMap['국내주식'],
+    currentRatioMap['실물자산'],
+    currentRatioMap['인컴자산'],
+    currentRatioMap['만기보유채권'],
+    currentRatioMap['시장형채권'],
+    currentRatioMap['현금성자산']
+  ].map(v => Number(v.toFixed(2)))
   const targetVals = [
-    targetPlan.국내주식 || 10,
-    targetPlan.해외주식 || 35,
-    targetPlan.만기보유채권 || 15,
-    targetPlan.시장형채권 || 15,
-    targetPlan.실물자산 || 15,
-    targetPlan.인컴자산 || 10,
-  ]
+    targetPlan.해외주식,
+    targetPlan.국내주식,
+    targetPlan.실물자산,
+    targetPlan.인컴자산,
+    targetPlan.만기보유채권,
+    targetPlan.시장형채권,
+    targetCashRatio
+  ].map(v => Number(v.toFixed(2)))
+
+  // 금액 격차 계산
+  const amountGapVals = compareCategories.map((cat, i) => {
+    const targetAmt = totalEval * (targetVals[i] / 100)
+    const currentAmt = cat === '현금성자산' ? cashAmt : currentAmtMap[cat as keyof typeof currentAmtMap]
+    return (currentAmt - targetAmt) / 10000 // 만원 단위
+  })
 
   const compareChartOption = {
     backgroundColor: 'transparent',
@@ -106,7 +149,7 @@ export default function AllocationStrategyPage() {
       type: 'category',
       data: compareCategories,
       axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
+      axisLabel: { color: '#94a3b8', fontSize: 11, interval: 0 },
     },
     yAxis: [
     {
@@ -144,6 +187,55 @@ export default function AllocationStrategyPage() {
     ],
   }
 
+  const compareAmountChartOption = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      formatter: (params: any) => {
+        const val = params[0].data
+        const color = val > 0 ? '#3b82f6' : '#ef4444'
+        const label = val > 0 ? '초과 달성' : '추가 투자 필요'
+        return `${params[0].axisValue}<br/>
+                <span style="color:${color};font-weight:bold;">
+                  ${val > 0 ? '+' : '-'}${Math.abs(val).toLocaleString(undefined, { maximumFractionDigits: 0 })} 만원
+                </span> (${label})`
+      }
+    },
+    grid: { left: '15%', right: '4%', bottom: '12%', top: '20%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: compareCategories,
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#94a3b8', fontSize: 11, interval: 0 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '금액 격차 (만원)',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLine: { lineStyle: { color: '#334155' } },
+      splitLine: { lineStyle: { color: '#1e293b' } },
+      axisLabel: { color: '#94a3b8' },
+    },
+    series: [
+      {
+        name: '격차 금액',
+        type: 'bar',
+        data: amountGapVals,
+        itemStyle: {
+          color: (params: any) => params.data > 0 ? '#3b82f6' : '#ef4444',
+          borderRadius: [4, 4, 0, 0]
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (params: any) => `${params.data > 0 ? '+' : ''}${Math.round(params.data).toLocaleString()}`,
+          color: '#cbd5e1',
+          fontSize: 10
+        }
+      }
+    ],
+  }
+
   return (
     <div className="space-y-6">
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
@@ -170,15 +262,27 @@ export default function AllocationStrategyPage() {
             ))}
           </div>
 
-          <Card>
-            <CardHeader
-              title={`현재 포트폴리오 비중 vs ${selectedStrategy} 목표 비중`}
-              subtitle="자산군별 괴리율 점검 및 리밸런싱 지침"
-            />
-            <CardBody>
-              <EChartsWrapper option={compareChartOption} height="360px" />
-            </CardBody>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader
+                title="포트폴리오 비중 비교"
+                subtitle="현재 비중 vs 자산배분 모델 목표"
+              />
+              <CardBody>
+                <EChartsWrapper option={compareChartOption} height="350px" />
+              </CardBody>
+            </Card>
+            
+            <Card>
+              <CardHeader
+                title="포트폴리오 금액 격차"
+                subtitle="(현재 투자금액 - SAA 목표 평가금액)"
+              />
+              <CardBody>
+                <EChartsWrapper option={compareAmountChartOption} height="350px" />
+              </CardBody>
+            </Card>
+          </div>
 
           {/* 목표 배분비중 기준 테이블 */}
           <Card>
@@ -188,26 +292,31 @@ export default function AllocationStrategyPage() {
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 font-medium">
                     <th className="py-3 px-4">구분</th>
-                    <th className="py-3 px-4 text-right">국내주식</th>
                     <th className="py-3 px-4 text-right">해외주식</th>
-                    <th className="py-3 px-4 text-right">만기보유채권</th>
-                    <th className="py-3 px-4 text-right">시장형채권</th>
+                    <th className="py-3 px-4 text-right">국내주식</th>
                     <th className="py-3 px-4 text-right">실물자산</th>
                     <th className="py-3 px-4 text-right">인컴자산</th>
+                    <th className="py-3 px-4 text-right">만기보유채권</th>
+                    <th className="py-3 px-4 text-right">시장형채권</th>
+                    <th className="py-3 px-4 text-right">현금성자산</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 font-mono">
-                  {(alloRows || []).map((r, i) => (
+                  {(alloRows || []).map((r, i) => {
+                    const cashRatio = Math.max(0, 100 - (r.국내주식 + r.해외주식 + r.만기보유채권 + r.시장형채권 + r.실물자산 + r.인컴자산));
+                    return (
                     <tr key={i} className="hover:bg-slate-800/40 transition">
                       <td className="py-2.5 px-4 font-sans font-semibold text-emerald-400">{r.구분}</td>
-                      <td className="py-2.5 px-4 text-right">{formatPercent(r.국내주식, false)}</td>
                       <td className="py-2.5 px-4 text-right">{formatPercent(r.해외주식, false)}</td>
-                      <td className="py-2.5 px-4 text-right">{formatPercent(r.만기보유채권, false)}</td>
-                      <td className="py-2.5 px-4 text-right">{formatPercent(r.시장형채권, false)}</td>
+                      <td className="py-2.5 px-4 text-right">{formatPercent(r.국내주식, false)}</td>
                       <td className="py-2.5 px-4 text-right">{formatPercent(r.실물자산, false)}</td>
                       <td className="py-2.5 px-4 text-right">{formatPercent(r.인컴자산, false)}</td>
+                      <td className="py-2.5 px-4 text-right">{formatPercent(r.만기보유채권, false)}</td>
+                      <td className="py-2.5 px-4 text-right">{formatPercent(r.시장형채권, false)}</td>
+                      <td className="py-2.5 px-4 text-right">{formatPercent(cashRatio, false)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </CardBody>
