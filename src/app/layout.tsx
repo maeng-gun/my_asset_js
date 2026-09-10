@@ -22,6 +22,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: '포트폴리오 관리 — 가족자산관리',
   description: 'Next.js + Supabase 기반의 실시간 포트폴리오 및 자산배분 관리 웹앱',
+  manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
