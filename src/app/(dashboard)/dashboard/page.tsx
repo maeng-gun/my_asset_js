@@ -118,8 +118,8 @@ export default function DashboardPage() {
   }
 
   // 데이터 가공: 자산군별 이중 도넛 차트
-  const majorGroupsArray = (summary?.t_comm || []).filter((d: any) => !d.세부자산군 && !d.상품명 && d.자산군 !== '<합계>' && d.평가금액 > 0)
-  const subGroupsArray = (summary?.t_comm || []).filter((d: any) => d.세부자산군 && !d.세부자산군2 && !d.상품명 && d.자산군 !== '<합계>' && d.평가금액 > 0)
+  const majorGroupsArray = (summary?.t_comm3 || []).filter((d: any) => !d.세부자산군 && d.자산군 !== '<합계>' && d.평가금액 > 0)
+  const subGroupsArray = (summary?.t_comm3 || []).filter((d: any) => d.세부자산군 && !d.세부자산군2 && d.자산군 !== '<합계>' && d.평가금액 > 0)
 
   const innerPieData = majorGroupsArray.map((d: any) => ({ name: d.자산군, value: d.평가금액 }))
   const outerPieData = subGroupsArray.map((d: any) => ({ name: d.세부자산군, value: d.평가금액 }))

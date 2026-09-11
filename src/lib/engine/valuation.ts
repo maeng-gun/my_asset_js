@@ -407,24 +407,33 @@ export function computeCommodityHoldings(
   })
   tComm.push(df6)
 
-  // DB holdings 스냅샷
-  const holdingsSnapshots = tComm
+  // DB holdings 스냅샷 (PK 제약조건 방지를 위해 자산군/세부자산군/세부자산군2/상품명 기준으로 중복 합산)
+  const holdingsRaw = tComm
     .filter((t) => t.상품명 && t.상품명 !== '' && t.자산군 !== '환차손익' && t.자산군 !== '<합계>')
-    .map((t) => ({ ...t }))
+    .map((t) => ({
+      ...t,
+      세부자산군: t.세부자산군 || '',
+      세부자산군2: t.세부자산군2 || '',
+      상품명: t.상품명 || '',
+    }))
 
-  // DB asset_ratio 스냅샷
-  const totalEvalHoldings = holdingsSnapshots.reduce((acc, c) => acc + c.평가금액, 0)
-  const ratioGrouped = new Map<string, { 자산군: string; 세부자산군: string; 세부자산군2: string; 평가금액: number }>()
-  for (const h of holdingsSnapshots) {
-    const k = `${h.자산군}_${h.세부자산군}_${h.세부자산군2}`
-    const cur = ratioGrouped.get(k) || { 자산군: h.자산군, 세부자산군: h.세부자산군, 세부자산군2: h.세부자산군2, 평가금액: 0 }
-    cur.평가금액 += h.평가금액
-    ratioGrouped.set(k, cur)
+  const holdingsMap = new Map<string, typeof holdingsRaw[0]>()
+  for (const h of holdingsRaw) {
+    const pk = `${h.자산군}|${h.세부자산군}|${h.세부자산군2}|${h.상품명}`
+    const existing = holdingsMap.get(pk)
+    if (existing) {
+      existing.보유수량 += h.보유수량
+      existing.장부금액 += h.장부금액
+      existing.평가금액 += h.평가금액
+      existing.평단가 = existing.보유수량 > 0 ? Math.round(existing.장부금액 / existing.보유수량) : 0
+      existing.현재가 = existing.보유수량 > 0 ? Math.round(existing.평가금액 / existing.보유수량) : 0
+      existing.평가손익 += h.평가손익
+      existing.평가수익률 = existing.장부금액 > 0 ? Number(((existing.평가손익 / existing.장부금액) * 100).toFixed(2)) : 0
+    } else {
+      holdingsMap.set(pk, { ...h })
+    }
   }
-  const assetRatioSnapshots = Array.from(ratioGrouped.values()).map((r) => ({
-    ...r,
-    비중: totalEvalHoldings > 0 ? Number(((r.평가금액 / totalEvalHoldings) * 100).toFixed(2)) : 0,
-  }))
+  const holdingsSnapshots = Array.from(holdingsMap.values())
 
   // t_comm2: 계좌별 그룹화 및 계좌 소계 행 포함
   const acctSubtotalsMap = new Map<string, { 장부금액: number; 평가금액: number }>()
@@ -532,7 +541,6 @@ export function computeCommodityHoldings(
     tComm2,
     tComm10,
     holdingsSnapshots,
-    assetRatioSnapshots,
   }
 }
 
@@ -600,6 +608,7 @@ export function computeAssetProfit(
 ): {
   tComm3: AssetClassProfitRecord[]
   tComm4: AccountProfitRecord[]
+  assetRatioSnapshots: Array<{ 자산군: string; 세부자산군: string; 세부자산군2: string; 평가금액: number; 비중: number }>
 } {
   // 통화 == '원화'인 투자자산 + 연금자산 결합
   const baseWon = evaluatedAssets
@@ -787,7 +796,17 @@ export function computeAssetProfit(
     return (cA === -1 ? 999 : cA) - (cB === -1 ? 999 : cB)
   })
 
-  return { tComm3, tComm4 }
+  // DB asset_ratio 테이블 적재 (자산군-세부자산군-세부자산군2 기준 평가금액 그룹핑 및 비중 산출)
+  const totalEvalAssetRatio = df5Acc.평가금액
+  const assetRatioSnapshots = Array.from(df2Map.values()).map((v) => ({
+    자산군: v.자산군,
+    세부자산군: v.세부자산군 || '',
+    세부자산군2: v.세부자산군2 || '',
+    평가금액: v.acc.평가금액,
+    비중: totalEvalAssetRatio > 0 ? Number(((v.acc.평가금액 / totalEvalAssetRatio) * 100).toFixed(2)) : 0,
+  }))
+
+  return { tComm3, tComm4, assetRatioSnapshots }
 }
 
 /**

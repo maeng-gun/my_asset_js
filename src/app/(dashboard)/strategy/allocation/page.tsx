@@ -52,11 +52,11 @@ export default function AllocationStrategyPage() {
     },
   })
 
-  // 현재 포트폴리오의 6대 자산군 비중 집계 (대시보드와 동일한 논리 적용)
-  const tComm = (summary?.t_comm || []) as any[]
-  const totalEval = tComm.find((r) => r.자산군 === '<합계>')?.평가금액 || 1
+  // 현재 포트폴리오의 6대 자산군 비중 집계 (종합손익 t_comm3 기준 적용)
+  const tComm3 = (summary?.t_comm3 || []) as any[]
+  const totalEval = tComm3.find((r) => r.자산군 === '<합계>')?.평가금액 || 1
 
-  const subGroupsArray = tComm.filter((d: any) => d.세부자산군 && !d.세부자산군2 && !d.상품명 && d.자산군 !== '<합계>')
+  const subGroupsArray = tComm3.filter((d: any) => d.세부자산군 && !d.세부자산군2 && d.자산군 !== '<합계>')
 
   let domesticStockAmt = 0
   let foreignStockAmt = 0

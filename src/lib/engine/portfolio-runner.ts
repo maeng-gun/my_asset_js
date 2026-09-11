@@ -177,15 +177,15 @@ export async function runPortfolioValuation(): Promise<{
     exchangeRates
   )
 
-  // 5. 상품별 보유현황 계산 (tComm, tComm2, tComm10, holdings, asset_ratio)
-  const { tComm, tComm2, tComm10, holdingsSnapshots, assetRatioSnapshots } =
+  // 5. 상품별 보유현황 계산 (tComm, tComm2, tComm10, holdings)
+  const { tComm, tComm2, tComm10, holdingsSnapshots } =
     computeCommodityHoldings(evaluatedAssets, evaluatedPension, exchangeRates)
 
   // 6. 11개 계좌 피벗 자산배분 매트릭스 계산 (accountAllocation)
   const accountAllocation = computeAccountAllocation(tComm2, groups)
 
-  // 7. 자산군별/계좌별 손익 계산 (tComm3, tComm4)
-  const { tComm3, tComm4 } = computeAssetProfit(evaluatedAssets, evaluatedPension)
+  // 7. 자산군별/계좌별 손익 계산 (tComm3, tComm4) 및 asset_ratio 산출
+  const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedAssets, evaluatedPension)
 
   // 8. 상세 상품별 손익 계산 (commProfit, commProfit2)
   const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedAssets, evaluatedPension)
@@ -193,12 +193,18 @@ export async function runPortfolioValuation(): Promise<{
   // 9. DB 스냅샷 갱신 (holdings, asset_ratio, return)
   try {
     if (holdingsSnapshots.length > 0) {
-      await supabase.from('holdings').delete().neq('장부금액', -999999999)
-      await supabase.from('holdings').insert(holdingsSnapshots)
+      const { error: delErr } = await supabase.from('holdings').delete().neq('장부금액', -999999999)
+      if (delErr) console.error('[DB Error] holdings delete:', delErr)
+      
+      const { error: insErr } = await supabase.from('holdings').insert(holdingsSnapshots)
+      if (insErr) console.error('[DB Error] holdings insert:', insErr)
     }
     if (assetRatioSnapshots.length > 0) {
-      await supabase.from('asset_ratio').delete().neq('비중', -999999999)
-      await supabase.from('asset_ratio').insert(assetRatioSnapshots)
+      const { error: delErr } = await supabase.from('asset_ratio').delete().neq('비중', -999999999)
+      if (delErr) console.error('[DB Error] asset_ratio delete:', delErr)
+      
+      const { error: insErr } = await supabase.from('asset_ratio').insert(assetRatioSnapshots)
+      if (insErr) console.error('[DB Error] asset_ratio insert:', insErr)
     }
 
     // return 테이블 오늘 스냅샷 upsert
