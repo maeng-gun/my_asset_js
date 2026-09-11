@@ -125,72 +125,59 @@ export default function DashboardPage() {
   const outerPieData = subGroupsArray.map((d: any) => ({ name: d.세부자산군, value: d.평가금액 }))
 
   const pieChartOption = {
-    baseOption: {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          const val = Math.round(params.value).toLocaleString('ko-KR')
-          const pct = params.percent ? params.percent.toFixed(1) : 0
-          return `${params.seriesName} <br/>${params.name}: ${val}원 (${pct}%)`
-        }
-      },
-      series: [
-        {
-          name: '자산군',
-          type: 'pie',
-          selectedMode: 'single',
-          radius: [0, '40%'],
-          label: { 
-            position: 'inner', 
-            fontSize: 10, 
-            color: '#fff', 
-            formatter: (params: any) => {
-              const pct = params.percent ? params.percent.toFixed(1) : 0
-              return `${params.name}\n${pct}%`
-            }
-          },
-          labelLine: { show: false },
-          data: innerPieData,
-          itemStyle: {
-              borderColor: '#0f172a',
-              borderWidth: 1
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      formatter: (params: any) => {
+        const val = Math.round(params.value).toLocaleString('ko-KR')
+        const pct = params.percent ? params.percent.toFixed(1) : 0
+        return `${params.seriesName} <br/>${params.name}: ${val}원 (${pct}%)`
+      }
+    },
+    series: [
+      {
+        name: '자산군',
+        type: 'pie',
+        selectedMode: 'single',
+        radius: [0, '30%'],
+        center: ['50%', '50%'],
+        label: { 
+          position: 'inner', 
+          fontSize: 10, 
+          color: '#fff', 
+          formatter: (params: any) => {
+            const pct = params.percent ? params.percent.toFixed(1) : 0
+            return `${params.name}\n${pct}%`
           }
         },
-        {
-          name: '세부자산군',
-          type: 'pie',
-          radius: ['50%', '70%'],
-          label: {
-            color: '#cbd5e1',
-            fontSize: 10,
-            formatter: (params: any) => {
-              const pct = params.percent ? params.percent.toFixed(1) : 0
-              return `${params.name} (${pct}%)`
-            }
-          },
-          data: outerPieData,
-          itemStyle: {
-              borderColor: '#0f172a',
-              borderWidth: 1
-          }
+        labelLine: { show: false },
+        data: innerPieData,
+        itemStyle: {
+            borderColor: '#0f172a',
+            borderWidth: 1
         }
-      ]
-    },
-    media: [
+      },
       {
-        query: { maxWidth: 500 },
-        option: {
-          series: [
-            {
-              radius: [0, '30%'],
-              label: { fontSize: 9 }
-            },
-            {
-              radius: ['40%', '55%'],
-              label: { fontSize: 9, alignTo: 'edge', margin: 10 }
-            }
-          ]
+        name: '세부자산군',
+        type: 'pie',
+        radius: ['40%', '55%'],
+        center: ['50%', '50%'],
+        label: {
+          color: '#cbd5e1',
+          fontSize: 10,
+          formatter: (params: any) => {
+            const pct = params.percent ? params.percent.toFixed(1) : 0
+            return `${params.name} (${pct}%)`
+          }
+        },
+        labelLine: {
+          length: 10,
+          length2: 10
+        },
+        data: outerPieData,
+        itemStyle: {
+            borderColor: '#0f172a',
+            borderWidth: 1
         }
       }
     ]
