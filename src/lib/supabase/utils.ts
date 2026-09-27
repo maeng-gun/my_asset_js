@@ -3,17 +3,18 @@ import { SupabaseClient } from '@supabase/supabase-js'
 export async function fetchAll<T = any>(
   supabase: SupabaseClient,
   table: string,
-  orderCol?: string
+  orderCol?: string,
+  columns: string = '*'
 ): Promise<{ data: T[] | null; error: any }> {
   const result: T[] = []
   const limit = 1000
   let start = 0
   while (true) {
-    let query = supabase.from(table).select('*')
+    let query = supabase.from(table).select(columns)
     if (orderCol) {
       query = query.order(orderCol, { ascending: true })
     }
-    const { data, error } = await query.range(start, start + limit - 1)
+    const { data, error } = await query.range(start, start + limit - 1) as unknown as { data: T[] | null; error: any }
     if (error) return { data: null, error }
     if (!data || data.length === 0) break
     result.push(...data)

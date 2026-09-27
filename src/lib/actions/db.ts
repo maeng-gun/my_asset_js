@@ -26,13 +26,13 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
   const masterTable = type === '투자자산' ? 'assets' : 'pension'
   
-  const { data: masterData } = await fetchAll(supabase, masterTable)
+  const { data: masterData } = await supabase.from(masterTable).select('*').eq('계좌', account)
   
-  const { data: dailyData, error } = await fetchAll(supabase, dailyTable)
+  const { data: dailyData, error } = await supabase.from(dailyTable).select('*').eq('계좌', account)
   if (error) throw new Error(`[getTradeHistory] ${error.message}`)
   
   // Calculate in JS
-  let filtered = (dailyData || []).filter((d: any) => d['계좌'] === account)
+  let filtered = dailyData || []
   
   // Join with master to get currency and itemName
   const masterMap = new Map()
@@ -128,7 +128,7 @@ export async function addTrade(type: '투자자산' | '연금자산', record: an
   
   const { data: maxRow } = await supabase
     .from(dailyTable)
-    .select('*')
+    .select('행번호')
     .order('행번호', { ascending: false })
     .limit(1)
     .single()

@@ -193,18 +193,12 @@ export async function runPortfolioValuation(): Promise<{
   // 9. DB 스냅샷 갱신 (holdings, asset_ratio, return)
   try {
     if (holdingsSnapshots.length > 0) {
-      const { error: delErr } = await supabase.from('holdings').delete().neq('장부금액', -999999999)
-      if (delErr) console.error('[DB Error] holdings delete:', delErr)
-      
-      const { error: insErr } = await supabase.from('holdings').insert(holdingsSnapshots)
-      if (insErr) console.error('[DB Error] holdings insert:', insErr)
+      const { error: insErr } = await supabase.from('holdings').upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
+      if (insErr) console.error('[DB Error] holdings upsert:', insErr)
     }
     if (assetRatioSnapshots.length > 0) {
-      const { error: delErr } = await supabase.from('asset_ratio').delete().neq('비중', -999999999)
-      if (delErr) console.error('[DB Error] asset_ratio delete:', delErr)
-      
-      const { error: insErr } = await supabase.from('asset_ratio').insert(assetRatioSnapshots)
-      if (insErr) console.error('[DB Error] asset_ratio insert:', insErr)
+      const { error: insErr } = await supabase.from('asset_ratio').upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
+      if (insErr) console.error('[DB Error] asset_ratio upsert:', insErr)
     }
 
     // return 테이블 오늘 스냅샷 upsert

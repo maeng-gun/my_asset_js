@@ -77,7 +77,7 @@ export class MarketDataService {
 
     const results: Array<{ 종목코드: string; 종가: number }> = []
 
-    for (const code of fundCodes) {
+    const fetchFund = async (code: string, retries = 2): Promise<{ 종목코드: string; 종가: number }> => {
       try {
         const resp = await fetch(`https://www.funddoctor.co.kr/afn/fund/fprofile2.jsp?fund_cd=${code}`, {
           headers: {
@@ -86,7 +86,7 @@ export class MarketDataService {
           },
         })
 
-        if (!resp.ok) continue
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         const html = await resp.text()
         const $ = cheerio.load(html)
         
@@ -103,14 +103,28 @@ export class MarketDataService {
             parsed = parseFloat(fallbackMatch[1].replace(/,/g, ''));
           }
         }
+        
         if (!isNaN(parsed) && parsed > 0) {
-          results.push({
+          return {
             종목코드: code,
             종가: parsed / 1000, // 좌당 기준가
-          })
+          }
         }
+        throw new Error('Could not parse price')
       } catch (err) {
+        if (retries > 0) {
+          await new Promise(r => setTimeout(r, 2000))
+          return fetchFund(code, retries - 1)
+        }
         console.warn(`[MarketDataService] Fund price failed for ${code}:`, err)
+        throw err
+      }
+    }
+
+    const settled = await Promise.allSettled(fundCodes.map(c => fetchFund(c)))
+    for (const res of settled) {
+      if (res.status === 'fulfilled') {
+        results.push(res.value)
       }
     }
 

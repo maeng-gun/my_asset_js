@@ -46,6 +46,15 @@ export async function runAllocationBacktest(alloRows: any[]) {
   const dateMap = new Map<string, number>();
   forEq.forEach((r: any) => { if (r.date && r.adjClose) dateMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
 
+  const bondMap = new Map<string, number>();
+  bond.forEach((r: any) => { if (r.date && r.adjClose) bondMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
+
+  const realMap = new Map<string, number>();
+  real.forEach((r: any) => { if (r.date && r.adjClose) realMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
+
+  const incMap = new Map<string, number>();
+  inc.forEach((r: any) => { if (r.date && r.adjClose) incMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
+
   const alignedDates: string[] = [];
   const prices = {
     '국내주식': [] as number[],
@@ -61,9 +70,9 @@ export async function runAllocationBacktest(alloRows: any[]) {
     const dStr = format(r.date, 'yyyy-MM-dd');
     
     const forP = dateMap.get(dStr);
-    const bondP = bond.find((x: any) => format(x.date, 'yyyy-MM-dd') === dStr)?.adjClose;
-    const realP = real.find((x: any) => format(x.date, 'yyyy-MM-dd') === dStr)?.adjClose;
-    const incP = inc.find((x: any) => format(x.date, 'yyyy-MM-dd') === dStr)?.adjClose;
+    const bondP = bondMap.get(dStr);
+    const realP = realMap.get(dStr);
+    const incP = incMap.get(dStr);
 
     if (forP && bondP && realP && incP) {
       alignedDates.push(dStr);
