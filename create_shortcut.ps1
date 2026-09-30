@@ -2,23 +2,69 @@ $WshShell = New-Object -ComObject WScript.Shell
 
 $appDir = $PSScriptRoot
 if (-not $appDir) { $appDir = (Get-Location).Path }
-$vbsPath = "$appDir\start_silent.vbs"
+
+$myAssetExe = "$appDir\MyAsset.exe"
 $icoPath = "$appDir\app_icon.ico"
-$wscriptExe = "$env:SystemRoot\System32\wscript.exe"
+$pythonExe = "$appDir\.venv\Scripts\python.exe"
 
-$s1 = $WshShell.CreateShortcut("$appDir\MyAsset.lnk")
-$s1.TargetPath = $wscriptExe
-$s1.Arguments = "`"$vbsPath`""
-$s1.WorkingDirectory = $appDir
-$s1.IconLocation = $icoPath
-$s1.Save()
+# 1. MyAsset.exe 바이너리가 없으면 PyInstaller로 빌드
+if ((-not (Test-Path $myAssetExe)) -and (Test-Path $pythonExe)) {
+    Write-Output "MyAsset.exe PyInstaller 경량 빌드 수행 중..."
+    & $pythonExe -m PyInstaller --name "MyAsset" --onefile --noconsole --icon "app_icon.ico" --add-data "app_icon.ico;." --exclude-module tkinter --exclude-module unittest --exclude-module test --exclude-module xmlrpc --exclude-module pydoc --exclude-module sqlite3 --exclude-module multiprocessing --clean "$appDir\desktop_tray_app.py"
+    if (Test-Path "$appDir\dist\MyAsset.exe") {
+        Move-Item -Path "$appDir\dist\MyAsset.exe" -Destination $myAssetExe -Force
+        Remove-Item -Path "$appDir\dist", "$appDir\build", "$appDir\MyAsset.spec" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
-$desktop = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-$s2 = $WshShell.CreateShortcut("$desktop\MyAsset.lnk")
-$s2.TargetPath = $wscriptExe
-$s2.Arguments = "`"$vbsPath`""
-$s2.WorkingDirectory = $appDir
-$s2.IconLocation = $icoPath
-$s2.Save()
+# 프로젝트 루트 폴더의 중복 바로가기는 정리(실행 파일 MyAsset.exe가 이미 존재함)
+if (Test-Path "$appDir\MyAsset.lnk") {
+    Remove-Item "$appDir\MyAsset.lnk" -Force -ErrorAction SilentlyContinue
+}
 
-Write-Output "Silent shortcuts created successfully!"
+$desktop = [System.Environment]::GetFolderPath("Desktop")
+$programs = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
+$taskbarDir = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+
+$shortcutTargets = @(
+    "$desktop\MyAsset.lnk",
+    "$programs\MyAsset.lnk"
+)
+
+foreach ($linkPath in $shortcutTargets) {
+    $s = $WshShell.CreateShortcut($linkPath)
+    $s.TargetPath = $myAssetExe
+    $s.Arguments = ""
+    $s.WorkingDirectory = $appDir
+    $s.IconLocation = "$myAssetExe,0"
+    $s.Save()
+}
+
+# 2. 작업표시줄 고정 폴더 내 바로가기 갱신
+if (Test-Path $taskbarDir) {
+    if (Test-Path "$taskbarDir\Python.lnk") {
+        Remove-Item "$taskbarDir\Python.lnk" -Force -ErrorAction SilentlyContinue
+    }
+    $s4 = $WshShell.CreateShortcut("$taskbarDir\MyAsset.lnk")
+    $s4.TargetPath = $myAssetExe
+    $s4.Arguments = ""
+    $s4.WorkingDirectory = $appDir
+    $s4.IconLocation = "$myAssetExe,0"
+    $s4.Save()
+}
+
+# 3. 윈도우 셸 아이콘 캐시 새로고침 알림
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class ShellNotifier {
+    [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);
+}
+"@ -ErrorAction SilentlyContinue
+[ShellNotifier]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+
+Write-Output "MyAsset.exe 및 바로가기 환경 설정 완료!"
+Write-Output "실행 파일: $myAssetExe"
+Write-Output "바탕화면: $desktop\MyAsset.lnk"
+Write-Output "시작 메뉴: $programs\MyAsset.lnk"

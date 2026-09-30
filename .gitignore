@@ -47,3 +47,13 @@ OTHER_PC_SETUP_GUIDE.md
 
 # shortcuts
 *.lnk
+
+# python desktop wrapper
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+/build/
+/dist/
+*.spec
+MyAsset.exe
