@@ -241,19 +241,38 @@ class MyAssetDesktopApp:
     def renew_evaluation_async(self):
         def _task():
             try:
-                # Next.js /api/renew-eval 은 POST 메서드로 구현되어 있음
+                headers = {}
+                cron_secret = os.environ.get('CRON_SECRET')
+                if cron_secret:
+                    headers['Authorization'] = f"Bearer {cron_secret}"
+                # Next.js /api/valuation 은 POST 메서드로 구현되어 있음
+                res = requests.post(f"{self.server_url}/api/valuation", headers=headers, timeout=60.0)
+                if res.status_code == 200:
+                    if self.tray:
+                        self.tray.notify("최신 시세 및 자산 평가가 성공적으로 갱신되었습니다.", "My Asset")
+                else:
+                    if self.tray:
+                        self.tray.notify(f"평가 재계산 실패 (HTTP {res.status_code})", "My Asset")
+            except Exception as e:
+                if self.tray:
+                    self.tray.notify(f"평가 재계산 오류: {str(e)}", "My Asset")
+        threading.Thread(target=_task, daemon=True).start()
+
+    def renew_base_eval_async(self):
+        def _task():
+            try:
                 res = requests.post(f"{self.server_url}/api/renew-eval", timeout=30.0)
                 if res.status_code == 200:
                     data = res.json()
-                    msg = data.get('message', '자산 평가가 성공적으로 갱신되었습니다.')
+                    msg = data.get('message', '기초평가손익이 성공적으로 갱신되었습니다.')
                     if self.tray:
                         self.tray.notify(msg, "My Asset")
                 else:
                     if self.tray:
-                        self.tray.notify(f"평가 갱신 실패 (HTTP {res.status_code})", "My Asset")
+                        self.tray.notify(f"기초손익 갱신 실패 (HTTP {res.status_code})", "My Asset")
             except Exception as e:
                 if self.tray:
-                    self.tray.notify(f"평가 갱신 오류: {str(e)}", "My Asset")
+                    self.tray.notify(f"기초손익 갱신 오류: {str(e)}", "My Asset")
         threading.Thread(target=_task, daemon=True).start()
 
     def open_external_browser(self):
@@ -310,7 +329,8 @@ class MyAssetDesktopApp:
 
         menu = pystray.Menu(
             pystray.MenuItem("대시보드 표시", lambda: self.show_window(), default=True),
-            pystray.MenuItem("자산 평가 즉시 갱신", lambda: self.renew_evaluation_async()),
+            pystray.MenuItem("평가금액 즉시 재계산", lambda: self.renew_evaluation_async()),
+            pystray.MenuItem("기초평가손익 갱신", lambda: self.renew_base_eval_async()),
             pystray.MenuItem("기본 브라우저로 열기", lambda: self.open_external_browser()),
             pystray.MenuItem("로그아웃 (세션 초기화)", lambda: self.logout()),
             pystray.Menu.SEPARATOR,

@@ -1,0 +1,56 @@
+name: Scheduled Portfolio Valuation
+
+on:
+  schedule:
+    # 1. 국내 정규장 개장 중 매시 5분 (09:05, 10:05, 11:05, 12:05, 13:05, 14:05, 15:05 KST)
+    - cron: '5 0-6 * * 1-5'
+    # 2. 국내 장 마감 직후 (15:35 KST)
+    - cron: '35 6 * * 1-5'
+    # 3. 미국 정규장 개장 직후 (22:35 KST)
+    - cron: '35 13 * * 1-5'
+    # 4. 아침 기상 시점 및 미국 장 마감 반영 (월~토 07:00 KST = 일~금 22:00 UTC)
+    - cron: '0 22 * * 0-5'
+  workflow_dispatch: # GitHub 웹 콘솔에서 수동 즉시 실행 가능
+
+jobs:
+  trigger-valuation:
+    name: Run Valuation API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Secrets
+        run: |
+          if [ -z "${{ secrets.VERCEL_APP_URL }}" ]; then
+            echo "::error::VERCEL_APP_URL secret is not set! Please add it in repository secrets."
+            exit 1
+          fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::CRON_SECRET secret is not set! Please add it in repository secrets."
+            exit 1
+          fi
+
+      - name: Call Valuation Endpoint
+        run: |
+          # URL 끝의 슬래시 제거 처리
+          BASE_URL="${{ secrets.VERCEL_APP_URL }}"
+          BASE_URL="${BASE_URL%/}"
+          TARGET_URL="${BASE_URL}/api/valuation"
+          
+          echo "Calling: $TARGET_URL at $(date -u)"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$TARGET_URL" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 60)
+            
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status Code: $HTTP_CODE"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Valuation API call failed with status $HTTP_CODE"
+            exit 1
+          fi
+          
+          echo "Valuation completed successfully!"
