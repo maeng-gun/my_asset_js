@@ -8,7 +8,10 @@ echo       MyAsset 데스크톱 앱 원클릭 환경 구축 시작
 echo ======================================================
 echo.
 
-:: 1. Python 설치 확인
+:: 1. Python 설치 확인 및 사용자 PATH 보정
+if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    set "PATH=%LOCALAPPDATA%\Programs\Python\Python312;%LOCALAPPDATA%\Programs\Python\Python312\Scripts;%PATH%"
+)
 python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>nul
 if %errorlevel% neq 0 (
     echo [오류] Python 3.10 이상이 설치되어 있지 않거나 PATH에 등록되지 않았습니다.

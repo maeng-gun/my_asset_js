@@ -12,5 +12,8 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000" ^| findstr "LISTENING
 REM 3. Kill python desktop tray app processes
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*desktop_tray_app.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
+REM 4. Kill MyAsset.exe binary if running
+taskkill /f /im MyAsset.exe >nul 2>&1
+
 echo All MyAsset processes stopped successfully.
 ping 127.0.0.1 -n 2 >nul
