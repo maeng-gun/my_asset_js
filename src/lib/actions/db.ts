@@ -21,6 +21,30 @@ export async function getAllTickers() {
   return data || []
 }
 
+interface TradeHistoryItem {
+  행번호?: number
+  계좌: string
+  통화: string
+  거래일자: string
+  종목명?: string
+  종목코드: string
+  매입수량?: number
+  매입액?: number
+  현금지출?: number
+  매입비용?: number
+  매도수량?: number
+  매도원금?: number
+  매도액?: number
+  매매수익?: number
+  이자배당액?: number
+  현금수입?: number
+  매도비용?: number
+  순수익?: number
+  입출금?: number
+  잔액?: number
+  [key: string]: unknown
+}
+
 export async function getTradeHistory(type: '투자자산' | '연금자산', account: string, currency: string, limitCount: number = 30) {
   const supabase = createAdminClient()
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
@@ -32,27 +56,27 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
   if (error) throw new Error(`[getTradeHistory] ${error.message}`)
   
   // Calculate in JS
-  let filtered = dailyData || []
+  const rawList = (dailyData || []) as TradeHistoryItem[]
   
   // Join with master to get currency and itemName
-  const masterMap = new Map()
+  const masterMap = new Map<string, { name: string; cur: string }>()
   if (masterData) {
     for (const m of masterData) {
       masterMap.set(m['계좌'] + '_' + m['종목코드'], { name: m['종목명'], cur: m['통화'] })
     }
   }
   
-  filtered = filtered.map((d: any) => {
+  let filtered = rawList.map((d) => {
     const meta = masterMap.get(d['계좌'] + '_' + d['종목코드'])
     return { ...d, '종목명': meta?.name || d['종목코드'], '통화': meta?.cur || '원화' }
   })
   
   if (currency && currency !== '전체') {
-    filtered = filtered.filter((d: any) => d['통화'] === currency)
+    filtered = filtered.filter((d) => d['통화'] === currency)
   }
   
   // Sort ascending by date and row number to calculate cumsum
-  filtered.sort((a: any, b: any) => {
+  filtered.sort((a, b) => {
     if (a['거래일자'] !== b['거래일자']) {
       return a['거래일자'] > b['거래일자'] ? 1 : -1
     }
@@ -60,21 +84,21 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
   })
   
   let currentBalance = 0
-  const computed = filtered.map((d: any) => {
-    const buyPrincipal = d['매입액'] || 0
-    const cashOut = d['현금지출'] || 0
+  const computed = filtered.map((d) => {
+    const buyPrincipal = (d['매입액'] as number) || 0
+    const cashOut = (d['현금지출'] as number) || 0
     const buyCost = cashOut - buyPrincipal
     
-    const sellPrincipal = d['매도원금'] || 0
-    const sellAmt = d['매도액'] || 0
+    const sellPrincipal = (d['매도원금'] as number) || 0
+    const sellAmt = (d['매도액'] as number) || 0
     const tradeProfit = sellAmt - sellPrincipal
     
-    const dividend = d['이자배당액'] || 0
-    const cashIn = d['현금수입'] || 0
+    const dividend = (d['이자배당액'] as number) || 0
+    const cashIn = (d['현금수입'] as number) || 0
     const sellCost = sellAmt + dividend - cashIn
     
     const netProfit = tradeProfit + dividend - sellCost - buyCost
-    const inOut = d['입출금'] || 0
+    const inOut = (d['입출금'] as number) || 0
     const netCashIn = inOut + cashIn - cashOut
     
     currentBalance += netCashIn
@@ -104,7 +128,7 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
   })
   
   // Sort descending and limit
-  computed.sort((a: any, b: any) => {
+  computed.sort((a, b) => {
     if (a['거래일자'] !== b['거래일자']) {
       return a['거래일자'] < b['거래일자'] ? 1 : -1
     }
@@ -122,7 +146,7 @@ export async function getCategories() {
   return data || []
 }
 
-export async function addTrade(type: '투자자산' | '연금자산', record: any) {
+export async function addTrade(type: '투자자산' | '연금자산', record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
   
@@ -133,7 +157,7 @@ export async function addTrade(type: '투자자산' | '연금자산', record: an
     .limit(1)
     .single()
 
-  const nextNum = ((maxRow as any)?.행번호 || 0) + 1
+  const nextNum = ((maxRow as { 행번호?: number } | null)?.행번호 || 0) + 1
   const newRecord = { ...record, 행번호: nextNum }
 
   const { error } = await supabase.from(dailyTable).insert(newRecord)
@@ -164,12 +188,96 @@ export async function getLatestPortfolioSummary() {
   return data
 }
 
-export async function getReturnData() {
-  const supabase = createAdminClient()
-  const { data, error } = await fetchAll(supabase, 'return', '기준일')
+export interface SummaryReturnTrendRow {
+  기준일: string
+  자산군: string
+  평가금액: number
+  총손익: number
+}
 
-  if (error) throw new Error(`[getReturnData] ${error.message}`)
-  return data || []
+export interface ReturnDataRow {
+  기준일: string
+  자산군: string
+  세부자산군: string
+  세부자산군2: string
+  평가금액: number
+  총손익: number
+  총수익률: number
+}
+
+export async function getSummaryReturnTrend(startDate?: string): Promise<SummaryReturnTrendRow[]> {
+  const supabase = createAdminClient()
+  const result: SummaryReturnTrendRow[] = []
+  const limit = 1000
+  let start = 0
+  while (true) {
+    let query = supabase
+      .from('return')
+      .select('기준일, 자산군, 평가금액, 총손익')
+      .eq('자산군', '<합계>')
+
+    if (startDate) {
+      query = query.gte('기준일', startDate)
+    }
+    query = query.order('기준일', { ascending: true })
+
+    const { data, error } = (await query.range(start, start + limit - 1)) as unknown as {
+      data: SummaryReturnTrendRow[] | null
+      error: Error | null
+    }
+    if (error) throw new Error(`[getSummaryReturnTrend] ${error.message}`)
+    if (!data || data.length === 0) break
+    result.push(...data)
+    if (data.length < limit) break
+    start += limit
+  }
+  return result
+}
+
+export async function getReturnData(params?: { startDate?: string; endDate?: string }): Promise<ReturnDataRow[]> {
+  const supabase = createAdminClient()
+  const result: ReturnDataRow[] = []
+  const limit = 1000
+  let start = 0
+  while (true) {
+    let query = supabase.from('return').select('*')
+    if (params?.startDate) {
+      query = query.gte('기준일', params.startDate)
+    }
+    if (params?.endDate) {
+      query = query.lte('기준일', params.endDate)
+    }
+    query = query.order('기준일', { ascending: true })
+
+    const { data, error } = (await query.range(start, start + limit - 1)) as unknown as {
+      data: Array<{
+        기준일: string
+        자산군: string
+        세부자산군?: string
+        세부자산군2?: string
+        평가금액?: number
+        총손익?: number
+        총수익률?: number
+      }> | null
+      error: Error | null
+    }
+    if (error) throw new Error(`[getReturnData] ${error.message}`)
+    if (!data || data.length === 0) break
+    for (const r of data) {
+      result.push({
+        기준일: r.기준일,
+        자산군: r.자산군,
+        세부자산군: r.세부자산군 || '',
+        세부자산군2: r.세부자산군2 || '',
+        평가금액: r.평가금액 || 0,
+        총손익: r.총손익 || 0,
+        총수익률: r.총수익률 || 0,
+      })
+    }
+    if (data.length < limit) break
+    start += limit
+  }
+  return result
 }
 
 export async function getInflowList() {
@@ -180,7 +288,7 @@ export async function getInflowList() {
   return data || []
 }
 
-export async function addInflowRecord(record: any) {
+export async function addInflowRecord(record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const { data: maxRow } = await supabase
     .from('inflow')
@@ -189,7 +297,7 @@ export async function addInflowRecord(record: any) {
     .limit(1)
     .single()
     
-  const nextNum = ((maxRow as any)?.행번호 || 0) + 1
+  const nextNum = ((maxRow as { 행번호?: number } | null)?.행번호 || 0) + 1
   const newRecord = { ...record, 행번호: nextNum }
 
   const { error } = await supabase.from('inflow').insert(newRecord)
@@ -197,7 +305,7 @@ export async function addInflowRecord(record: any) {
   return true
 }
 
-export async function updateInflowRecord(id: number, record: any) {
+export async function updateInflowRecord(id: number, record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const { error } = await supabase
     .from('inflow')
@@ -227,7 +335,7 @@ export async function getAlloTableRows() {
   return data || []
 }
 
-export async function addTicker(type: '투자자산' | '연금자산', record: any) {
+export async function addTicker(type: '투자자산' | '연금자산', record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const table = type === '투자자산' ? 'assets' : 'pension'
   
@@ -238,7 +346,7 @@ export async function addTicker(type: '투자자산' | '연금자산', record: a
     .limit(1)
     .single()
 
-  const nextNum = ((maxRow as any)?.행번호 || 0) + 1
+  const nextNum = ((maxRow as { 행번호?: number } | null)?.행번호 || 0) + 1
   const newRecord = { ...record, 행번호: nextNum }
 
   const { error } = await supabase.from(table).insert(newRecord)
@@ -247,7 +355,7 @@ export async function addTicker(type: '투자자산' | '연금자산', record: a
   return true
 }
 
-export async function updateTicker(type: '투자자산' | '연금자산', id: number, record: any) {
+export async function updateTicker(type: '투자자산' | '연금자산', id: number, record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const table = type === '투자자산' ? 'assets' : 'pension'
   
@@ -277,12 +385,16 @@ export async function addCategory(key: string, value: string) {
 
 export async function deleteCategory(key: string, value: string) {
   const supabase = createAdminClient()
-  const { error } = await supabase.from('categories').delete().eq('key', key).eq('value', value)
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('key', key)
+    .eq('value', value)
   if (error) throw new Error(`[deleteCategory] ${error.message}`)
   return true
 }
 
-export async function updateTrade(type: '투자자산' | '연금자산', id: number, record: any) {
+export async function updateTrade(type: '투자자산' | '연금자산', id: number, record: Record<string, unknown>) {
   const supabase = createAdminClient()
   const dailyTable = type === '투자자산' ? 'assets_daily' : 'pension_daily'
   const { error } = await supabase

@@ -136,7 +136,9 @@ export function evaluateBalanceSheet(
 
     const closingPrice = closingPricesMap.get(r.종목코드)
 
-    let bookAmt = r.장부금액 < 1 ? 0 : r.장부금액
+    const isStockOrFund = /^\d[a-zA-Z0-9]{4}\d$/.test(r.종목코드) || r.종목코드.startsWith('K5')
+
+    const bookAmt = r.장부금액 < 1 ? 0 : r.장부금액
     let evalAmt = bookAmt
 
     if (ovsEvalAmt > 0) {
@@ -145,6 +147,8 @@ export function evaluateBalanceSheet(
       evalAmt = masterEvalAmt
     } else if (closingPrice !== undefined && closingPrice !== null && !isNaN(closingPrice)) {
       evalAmt = closingPrice * r.보유수량
+    } else if (isStockOrFund && r.보유수량 === 0) {
+      evalAmt = 0
     }
 
     result.push({
@@ -571,15 +575,17 @@ export function computeAccountAllocation(
     const acctVals = pivotedMap.get(k) || {}
 
     let rowSum = 0
-    const rowItem: any = {
+    const rowItem: AccountAllocationItem = {
       자산군: g.자산군,
       세부자산군: g.세부자산군 || '',
       세부자산군2: g.세부자산군2 || '',
+      합계: 0,
+      비중: 0,
     }
 
     for (const a of ALLOCATION_ACCOUNTS) {
       const v = acctVals[a] || 0
-      rowItem[a] = v
+      ;(rowItem as unknown as Record<string, string | number>)[a] = v
       rowSum += v
     }
     rowItem.합계 = rowSum

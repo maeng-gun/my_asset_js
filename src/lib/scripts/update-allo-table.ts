@@ -1,11 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
-import * as fs from 'fs';
 import * as path from 'path';
-import * as dotenv from 'dotenv';
 
-// Load .env.local
-const envPath = path.resolve('C:/Users/infomax/.gemini/antigravity/worktrees/my_asset_js/update_portfolio_analytics_dashboard', '.env.local');
-dotenv.config({ path: envPath });
+// Load .env.local if available
+try {
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  const proc = process as { loadEnvFile?: (path?: string) => void };
+  if (typeof proc.loadEnvFile === 'function') {
+    proc.loadEnvFile(envPath);
+  }
+} catch {
+  // Ignore missing .env.local
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

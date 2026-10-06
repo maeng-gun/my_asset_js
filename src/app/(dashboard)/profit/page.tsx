@@ -37,7 +37,7 @@ export default function ProfitPage() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   // 1. 최신 포트폴리오 스냅샷 쿼리 (0.01초 로딩)
-  const { data: summary, isLoading: isSummaryLoading } = useQuery({
+  const { data: summary } = useQuery({
     queryKey: ['latest-portfolio-summary'],
     queryFn: async () => {
       const data = await getLatestPortfolioSummary()
@@ -47,9 +47,9 @@ export default function ProfitPage() {
 
   // 2. return 시계열 데이터 쿼리 (손익변동 차트용)
   const { data: returnDataRows } = useQuery({
-    queryKey: ['profit-return-data'],
+    queryKey: ['profit-return-data', startDate, endDate],
     queryFn: async () => {
-      const data = await getReturnData()
+      const data = await getReturnData({ startDate, endDate })
       return data || []
     },
   })

@@ -19,17 +19,15 @@ export class KISService {
   }
 
   static async create(accountName = 'my'): Promise<KISService> {
-    const supabase = createAdminClient()
-
-    let appKey =
+    const appKey =
       accountName === 'boolio'
         ? process.env.KIS_BOOLIO_APP_KEY || process.env.KIS_MY_APP_KEY
         : process.env.KIS_MY_APP_KEY
-    let appSecret =
+    const appSecret =
       accountName === 'boolio'
         ? process.env.KIS_BOOLIO_APP_SECRET || process.env.KIS_MY_APP_SECRET
         : process.env.KIS_MY_APP_SECRET
-    let account =
+    const account =
       accountName === 'boolio'
         ? process.env.KIS_BOOLIO_ACCOUNT || process.env.KIS_MY_ACCOUNT
         : process.env.KIS_MY_ACCOUNT
@@ -51,33 +49,48 @@ export class KISService {
     )
   }
 
+  private parseAccount(): { cano: string; acntPrdtCd: string } {
+    const raw = (this.config.account || '').replace(/[^0-9]/g, '')
+    const cano = raw.length >= 8 ? raw.slice(0, 8) : ''
+    const acntPrdtCd = raw.length >= 10 ? raw.slice(8, 10) : '01'
+    return { cano, acntPrdtCd }
+  }
+
   async getAuthToken(): Promise<string | null> {
     const now = new Date()
+    const BUFFER_MS = 10 * 60 * 1000
 
-    // 1. 메모리 캐시 확인
-    if (this.tokenCache && this.tokenCache.expiresAt > now) {
+    // 1. 메모리 캐시 확인 (만료 10분 전 사전 갱신 안전 버퍼 적용)
+    if (this.tokenCache && this.tokenCache.expiresAt.getTime() - BUFFER_MS > now.getTime()) {
       return this.tokenCache.token
     }
 
     // 2. Supabase DB 토큰 캐시 테이블 확인
     const supabase = createAdminClient()
     try {
-      const { data } = await supabase.from(this.tokenTable).select('token, valid_date').limit(1).single()
-      if (data?.token && data?.valid_date) {
-        // DB의 valid_date는 KST 문자열(예: '2024-08-28 10:10:10')로 가정
-        const validDate = new Date(data.valid_date.replace(' ', 'T') + '+09:00')
-        if (validDate > now) {
+      const { data, error } = await supabase.from(this.tokenTable).select('token, valid_date').limit(1).maybeSingle()
+      if (!error && data?.token && data?.valid_date) {
+        // DB의 valid_date 문자열 정규화 (ISO 또는 KST 포맷 방어)
+        const rawDate = String(data.valid_date).trim()
+        const dateIso = rawDate.includes('+') || rawDate.endsWith('Z')
+          ? rawDate
+          : rawDate.replace(' ', 'T') + '+09:00'
+        const validDate = new Date(dateIso)
+        if (!isNaN(validDate.getTime()) && validDate.getTime() - BUFFER_MS > now.getTime()) {
           this.tokenCache = { token: data.token, expiresAt: validDate }
           return data.token
         }
       }
     } catch {
-      // 테이블이 없거나 레코드 없을 시 통과
+      // 테이블이 없거나 레코드 없을 시 콘솔 에러 없이 통과 (인메모리 캐시 fallback)
     }
 
     // 3. KIS API 호출하여 신규 토큰 발급
     if (!this.config.appKey || !this.config.appSecret) {
       console.warn(`[KISService] APP_KEY or APP_SECRET not set for ${this.tokenTable}`)
+      if (this.tokenCache && this.tokenCache.expiresAt.getTime() > now.getTime()) {
+        return this.tokenCache.token
+      }
       return null
     }
 
@@ -96,6 +109,9 @@ export class KISService {
 
       if (!response.ok) {
         console.error(`[KISService] Auth token request failed: ${response.statusText}`)
+        if (this.tokenCache && this.tokenCache.expiresAt.getTime() > now.getTime()) {
+          return this.tokenCache.token
+        }
         return null
       }
 
@@ -119,7 +135,7 @@ export class KISService {
 
       this.tokenCache = { token, expiresAt }
 
-      // DB에 저장
+      // DB에 저장 (실패 시 인메모리 캐시만 유지하고 조용히 통과)
       try {
         await supabase.from(this.tokenTable).upsert(
           {
@@ -129,13 +145,16 @@ export class KISService {
           },
           { onConflict: 'id' }
         )
-      } catch (e) {
-        console.warn('[KISService] Token save to DB warning:', e)
+      } catch {
+        // DB 테이블 미존재 등 에러 시 조용히 통과
       }
 
       return token
     } catch (err) {
       console.error('[KISService] Auth error:', err)
+      if (this.tokenCache && this.tokenCache.expiresAt.getTime() > now.getTime()) {
+        return this.tokenCache.token
+      }
       return null
     }
   }
@@ -160,8 +179,14 @@ export class KISService {
 
       if (!resp.ok) return null
       const data = await resp.json()
+      if (data?.rt_cd !== '0') {
+        return null
+      }
       if (data?.output?.stck_prpr) {
-        return parseFloat(data.output.stck_prpr)
+        const price = parseFloat(data.output.stck_prpr)
+        if (price > 0) {
+          return price
+        }
       }
       return null
     } catch (err) {
@@ -172,91 +197,151 @@ export class KISService {
 
   async getDomesticBalance(): Promise<Array<{ 종목코드: string; 상품명: string; 평가금액: number }>> {
     const token = await this.getAuthToken()
-    if (!token || !this.config.account) return []
+    const { cano, acntPrdtCd } = this.parseAccount()
+    if (!token || !cano) return []
 
     const url = `${this.config.urlBase}/uapi/domestic-stock/v1/trading/inquire-balance`
-    const params = new URLSearchParams({
-      CANO: this.config.account,
-      ACNT_PRDT_CD: '01',
-      AFHR_FLPR_YN: 'N',
-      OFL_YN: 'N',
-      INQR_DVSN: '01',
-      UNPR_DVSN: '01',
-      FUND_STTL_ICLD_YN: 'N',
-      FNCG_AMT_AUTO_RDPT_YN: 'N',
-      PRCS_DVSN: '01',
-      CTX_AREA_FK100: '',
-      CTX_AREA_NK100: '',
-    })
+    const results: Array<{ 종목코드: string; 상품명: string; 평가금액: number }> = []
 
-    try {
-      const resp = await fetch(`${url}?${params.toString()}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${token}`,
-          appkey: this.config.appKey,
-          appsecret: this.config.appSecret,
-          tr_id: 'TTTC8434R',
-          custtype: 'P',
-        },
+    let ctxAreaFk = ''
+    let ctxAreaNk = ''
+    let isContinuous = false
+    const maxPages = 20
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        CANO: cano,
+        ACNT_PRDT_CD: acntPrdtCd,
+        AFHR_FLPR_YN: 'N',
+        OFL_YN: 'N',
+        INQR_DVSN: '01',
+        UNPR_DVSN: '01',
+        FUND_STTL_ICLD_YN: 'N',
+        FNCG_AMT_AUTO_RDPT_YN: 'N',
+        PRCS_DVSN: '01',
+        CTX_AREA_FK100: ctxAreaFk,
+        CTX_AREA_NK100: ctxAreaNk,
       })
 
-      if (!resp.ok) return []
-      const data = await resp.json()
-      if (data?.output1 && Array.isArray(data.output1)) {
-        return data.output1.map((item: { pdno: string; prdt_name: string; evlu_amt: string }) => ({
-          종목코드: item.pdno,
-          상품명: item.prdt_name,
-          평가금액: parseFloat(item.evlu_amt) || 0,
-        }))
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${token}`,
+        appkey: this.config.appKey,
+        appsecret: this.config.appSecret,
+        tr_id: 'TTTC8434R',
+        custtype: 'P',
       }
-      return []
-    } catch (err) {
-      console.error('[KISService] Error fetching domestic balance:', err)
-      return []
+      if (isContinuous) {
+        headers.tr_cont = 'N'
+      }
+
+      try {
+        const resp = await fetch(`${url}?${params.toString()}`, { headers })
+        if (!resp.ok) break
+
+        const trCont = (resp.headers.get('tr_cont') || resp.headers.get('tr-cont') || '').trim().toUpperCase()
+        const data = await resp.json()
+
+        if (data?.output1 && Array.isArray(data.output1)) {
+          for (const item of data.output1) {
+            results.push({
+              종목코드: item.pdno,
+              상품명: item.prdt_name,
+              평가금액: parseFloat(item.evlu_amt) || 0,
+            })
+          }
+        }
+
+        if (trCont === 'M') {
+          const nextFk = (data?.ctx_area_fk100 || data?.ctx_area_fk200 || '').trim()
+          const nextNk = (data?.ctx_area_nk100 || data?.ctx_area_nk200 || '').trim()
+          if (!nextFk && !nextNk) break
+          if (nextFk === ctxAreaFk && nextNk === ctxAreaNk) break
+          ctxAreaFk = nextFk
+          ctxAreaNk = nextNk
+          isContinuous = true
+        } else {
+          break
+        }
+      } catch (err) {
+        console.error('[KISService] Error fetching domestic balance:', err)
+        break
+      }
     }
+
+    return results
   }
 
   async getOverseasBalance(currency: 'USD' | 'JPY' = 'USD'): Promise<Array<{ 종목코드: string; 상품명: string; 평가금액: number }>> {
     const token = await this.getAuthToken()
-    if (!token || !this.config.account) return []
+    const { cano, acntPrdtCd } = this.parseAccount()
+    if (!token || !cano) return []
 
     const exchangeCode = currency === 'USD' ? 'NASD' : 'TKSE'
     const url = `${this.config.urlBase}/uapi/overseas-stock/v1/trading/inquire-balance`
-    const params = new URLSearchParams({
-      CANO: this.config.account,
-      ACNT_PRDT_CD: '01',
-      OVRS_EXCG_CD: exchangeCode,
-      TR_CRCY_CD: currency,
-      CTX_AREA_FK200: '',
-      CTX_AREA_NK200: '',
-    })
+    const results: Array<{ 종목코드: string; 상품명: string; 평가금액: number }> = []
 
-    try {
-      const resp = await fetch(`${url}?${params.toString()}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${token}`,
-          appkey: this.config.appKey,
-          appsecret: this.config.appSecret,
-          tr_id: 'TTTS3012R',
-          custtype: 'P',
-        },
+    let ctxAreaFk = ''
+    let ctxAreaNk = ''
+    let isContinuous = false
+    const maxPages = 20
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        CANO: cano,
+        ACNT_PRDT_CD: acntPrdtCd,
+        OVRS_EXCG_CD: exchangeCode,
+        TR_CRCY_CD: currency,
+        CTX_AREA_FK200: ctxAreaFk,
+        CTX_AREA_NK200: ctxAreaNk,
       })
 
-      if (!resp.ok) return []
-      const data = await resp.json()
-      if (data?.output1 && Array.isArray(data.output1)) {
-        return data.output1.map((item: { ovrs_pdno: string; ovrs_item_name: string; ovrs_stck_evlu_amt: string }) => ({
-          종목코드: item.ovrs_pdno,
-          상품명: item.ovrs_item_name,
-          평가금액: parseFloat(item.ovrs_stck_evlu_amt) || 0,
-        }))
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        authorization: `Bearer ${token}`,
+        appkey: this.config.appKey,
+        appsecret: this.config.appSecret,
+        tr_id: 'TTTS3012R',
+        custtype: 'P',
       }
-      return []
-    } catch (err) {
-      console.error(`[KISService] Error fetching overseas balance (${currency}):`, err)
-      return []
+      if (isContinuous) {
+        headers.tr_cont = 'N'
+      }
+
+      try {
+        const resp = await fetch(`${url}?${params.toString()}`, { headers })
+        if (!resp.ok) break
+
+        const trCont = (resp.headers.get('tr_cont') || resp.headers.get('tr-cont') || '').trim().toUpperCase()
+        const data = await resp.json()
+
+        if (data?.output1 && Array.isArray(data.output1)) {
+          for (const item of data.output1) {
+            results.push({
+              종목코드: item.ovrs_pdno,
+              상품명: item.ovrs_item_name,
+              평가금액: parseFloat(item.ovrs_stck_evlu_amt) || 0,
+            })
+          }
+        }
+
+        if (trCont === 'M') {
+          const nextFk = (data?.ctx_area_fk200 || data?.ctx_area_fk100 || '').trim()
+          const nextNk = (data?.ctx_area_nk200 || data?.ctx_area_nk100 || '').trim()
+          if (!nextFk && !nextNk) break
+          if (nextFk === ctxAreaFk && nextNk === ctxAreaNk) break
+          ctxAreaFk = nextFk
+          ctxAreaNk = nextNk
+          isContinuous = true
+        } else {
+          break
+        }
+      } catch (err) {
+        console.error(`[KISService] Error fetching overseas balance (${currency}):`, err)
+        break
+      }
     }
+
+    return results
   }
 }

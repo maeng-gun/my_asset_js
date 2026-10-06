@@ -6,7 +6,7 @@ import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { EChartsWrapper } from '@/components/charts/echarts-wrapper'
 import { formatKRW, formatPercent } from '@/lib/utils'
 import { buildProfitTrendData } from '@/lib/engine/analytics'
-import { getLatestPortfolioSummary, getReturnData, getInflowList } from '@/lib/actions/db'
+import { getLatestPortfolioSummary, getSummaryReturnTrend, getInflowList } from '@/lib/actions/db'
 import { format, addDays } from 'date-fns'
 import {
   TrendingUp,
@@ -20,6 +20,10 @@ import { LatestPortfolioSummary } from '@/lib/engine/types'
 export default function DashboardPage() {
   const [scheduleTab, setScheduleTab] = useState<'all' | 'inflow' | 'maturity'>('all')
 
+  const startDate = `${new Date().getFullYear() - 1}-12-31`
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const endDate = todayStr
+
   // 1. 최신 포트폴리오 스냅샷
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['latest-portfolio-summary'],
@@ -29,11 +33,11 @@ export default function DashboardPage() {
     },
   })
 
-  // 2. return 시계열 데이터
+  // 2. return 시계열 데이터 (YTD <합계> 데이터만 조회)
   const { data: returnDataRows } = useQuery({
-    queryKey: ['profit-return-data'],
+    queryKey: ['summary-return-trend', startDate],
     queryFn: async () => {
-      const data = await getReturnData()
+      const data = await getSummaryReturnTrend(startDate)
       return data || []
     },
   })
@@ -71,9 +75,6 @@ export default function DashboardPage() {
   }
 
   // 데이터 가공: YTD 누적손익 라인 차트
-  const startDate = `${new Date().getFullYear() - 1}-12-31`
-  const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const endDate = todayStr
   const trendData = returnDataRows ? buildProfitTrendData(returnDataRows, startDate, endDate) : []
 
   const ytdChartOption = {

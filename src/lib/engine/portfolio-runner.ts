@@ -11,7 +11,7 @@ import {
 } from './valuation'
 import { computeTotalProfit, computeProfitVariation } from './analytics'
 import { AssetMaster, DailyTradeRaw, LatestPortfolioSummary } from './types'
-import { format } from 'date-fns'
+import { format, subDays, subMonths, subYears } from 'date-fns'
 
 import { fetchAll } from '@/lib/supabase/utils'
 
@@ -69,7 +69,18 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 2. 환율, 금 시세, KIS 시세 수집
+  // 2. 일별 거래 집계 & 장부금액/평잔 계산 (오늘 날짜 잔액 레코드 필터)
+  const dailyAssets = getDailyTrading(assets, assetsDaily)
+  const bsAssets = getBalanceSheet('assets', dailyAssets, assets)
+
+  const dailyPension = getDailyTrading(pension, pensionDaily)
+  const bsPension = getBalanceSheet('pension', dailyPension, pension)
+
+  // 오늘 날짜 잔액 레코드 필터
+  const todayBsAssets = bsAssets.filter((r) => r.거래일자 === todayStr)
+  const todayBsPension = bsPension.filter((r) => r.거래일자 === todayStr)
+
+  // 3. 환율, 금 시세, KIS 시세 수집
   let exchangeRates = { USD: 1400, JPY: 9.3 }
   let goldPrice: { 종목코드: string; 종가: number } | null = null
   let kisBoolioService: KISService | null = null
@@ -91,13 +102,35 @@ export async function runPortfolioValuation(): Promise<{
     console.warn('Market price fetching warning:', err)
   }
 
-  // 종목코드 목록 추출 및 현재가 수집
-  const allCodes = Array.from(
-    new Set([...assets.map((a) => a.종목코드), ...pension.map((p) => p.종목코드)])
-  )
+  // 4. 보유수량 > 0인 종목코드 추출 (금현물, 불리오 해외주식, 고정평가 대상 제외)
+  const allMasters = [...assets, ...pension]
+  const masterMap = new Map<string, AssetMaster>()
+  for (const m of allMasters) {
+    const key = `${m.계좌}_${m.종목코드}`
+    const existing = masterMap.get(key)
+    if (existing && (existing.평가금액 || 0) > 0 && (!m.평가금액 || m.평가금액 === 0)) {
+      masterMap.set(key, { ...m, 평가금액: existing.평가금액 || 0 })
+    } else {
+      masterMap.set(key, m)
+    }
+  }
 
-  const stockCodes = allCodes.filter((c) => /^\d[a-zA-Z0-9]{4}\d$/.test(c))
-  const fundCodes = allCodes.filter((c) => c.startsWith('K5'))
+  const ovsTickerSet = new Set(ovsBalances.map((o) => o.종목코드))
+  const goldTicker = goldPrice?.종목코드
+
+  const activeHoldings = [...todayBsAssets, ...todayBsPension].filter((r) => {
+    if (r.보유수량 <= 0) return false
+    if (goldTicker && r.종목코드 === goldTicker) return false
+    if (r.계좌 === '불리오' && ovsTickerSet.has(r.종목코드)) return false
+    const masterEvalAmt = masterMap.get(`${r.계좌}_${r.종목코드}`)?.평가금액 || 0
+    if (masterEvalAmt > 0) return false
+    return true
+  })
+
+  const targetCodes = Array.from(new Set(activeHoldings.map((r) => r.종목코드)))
+
+  const stockCodes = targetCodes.filter((c) => /^\d[a-zA-Z0-9]{4}\d$/.test(c))
+  const fundCodes = targetCodes.filter((c) => c.startsWith('K5'))
 
   const closingPricesMap = new Map<string, number>()
 
@@ -117,7 +150,7 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 개별 주식 현재가 KIS 조회
+  // 개별 주식 현재가 KIS 조회 (실보유 종목만 호출)
   if (kisBoolioService) {
     for (const ticker of stockCodes) {
       let success = false
@@ -148,18 +181,7 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 3. 일별 거래 집계 & 장부금액/평잔 계산
-  const dailyAssets = getDailyTrading(assets, assetsDaily)
-  const bsAssets = getBalanceSheet('assets', dailyAssets, assets)
-
-  const dailyPension = getDailyTrading(pension, pensionDaily)
-  const bsPension = getBalanceSheet('pension', dailyPension, pension)
-
-  // 오늘 날짜 잔액 레코드 필터
-  const todayBsAssets = bsAssets.filter((r) => r.거래일자 === todayStr)
-  const todayBsPension = bsPension.filter((r) => r.거래일자 === todayStr)
-
-  // 4. 시세 반영 평가
+  // 5. 시세 반영 평가
   const evaluatedAssets = evaluateBalanceSheet(
     'assets',
     todayBsAssets,
@@ -219,10 +241,104 @@ export async function runPortfolioValuation(): Promise<{
   }
 
   // 10. 종합손익 및 손익변동 계산
-  const [{ data: evalProfitRows }, { data: returnAllRows }] = await Promise.all([
+  const [{ data: evalProfitRows }] = await Promise.all([
     fetchAll(supabase, 'eval_profit'),
-    fetchAll(supabase, 'return', '기준일'),
   ])
+
+  // 2단계 안전 날짜 확정 패턴 (주말/공휴일 결함 방지)
+  // 1단계: 1.5년치 기준일 목록 조회 -> findClosestDate로 5개 영업일 확정
+  const oneAndHalfYearsAgo = format(subMonths(new Date(), 18), 'yyyy-MM-dd')
+  const { data: dateRows } = (await supabase
+    .from('return')
+    .select('기준일')
+    .eq('자산군', '<합계>')
+    .gte('기준일', oneAndHalfYearsAgo)
+    .order('기준일', { ascending: true })) as unknown as { data: Array<{ 기준일: string }> | null }
+
+  const availableDates = Array.from(
+    new Set(dateRows?.map((r) => r.기준일.substring(0, 10)) || [])
+  ).sort()
+
+  const findClosestDate = (targetDate: string): string | null => {
+    const exact = availableDates.find((d) => d === targetDate)
+    if (exact) return exact
+    const beforeDates = availableDates.filter((d) => d <= targetDate)
+    if (beforeDates.length > 0) return beforeDates[beforeDates.length - 1]
+    return availableDates[0] || null
+  }
+
+  const todayDate = new Date()
+  const targetD1 = format(subDays(todayDate, 1), 'yyyy-MM-dd')
+  const targetDm = format(subMonths(todayDate, 1), 'yyyy-MM-dd')
+  const targetD3m = format(subMonths(todayDate, 3), 'yyyy-MM-dd')
+  const targetD6m = format(subMonths(todayDate, 6), 'yyyy-MM-dd')
+  const targetDy = format(subYears(todayDate, 1), 'yyyy-MM-dd')
+
+  const exact5Dates = Array.from(
+    new Set(
+      [
+        findClosestDate(targetD1),
+        findClosestDate(targetDm),
+        findClosestDate(targetD3m),
+        findClosestDate(targetD6m),
+        findClosestDate(targetDy),
+      ].filter((d): d is string => !!d)
+    )
+  )
+
+  interface ReturnVariationRow {
+    기준일: string
+    자산군: string
+    세부자산군: string
+    세부자산군2: string
+    평가금액: number
+    총손익: number
+    총수익률: number
+  }
+
+  interface ReturnSummaryRow {
+    기준일: string
+    자산군: string
+    평가금액: number
+    총손익: number
+  }
+
+  // 2단계: 5개 확정 영업일의 return 레코드 및 연간 손익용 과거 연도말 합계 조회
+  const [
+    variationRes,
+    pastYearEndRes,
+  ] = await Promise.all([
+    exact5Dates.length > 0
+      ? supabase
+          .from('return')
+          .select('기준일, 자산군, 세부자산군, 세부자산군2, 평가금액, 총손익, 총수익률')
+          .in('기준일', exact5Dates)
+      : Promise.resolve({ data: [] as ReturnVariationRow[] }),
+    supabase
+      .from('return')
+      .select('기준일, 자산군, 평가금액, 총손익')
+      .eq('자산군', '<합계>')
+      .lt('기준일', `${currentYear}-01-01`)
+      .order('기준일', { ascending: true }),
+  ])
+
+  const variationList = ((variationRes.data || []) as unknown) as ReturnVariationRow[]
+  const pastYearEndList = ((pastYearEndRes.data || []) as unknown) as ReturnSummaryRow[]
+
+  const combinedReturnRows: Array<{
+    기준일: string
+    자산군: string
+    평가금액: number
+    총손익: number
+  }> = [
+    ...variationList.map((r) => ({
+      기준일: r.기준일,
+      자산군: r.자산군,
+      평가금액: r.평가금액,
+      총손익: r.총손익,
+    })),
+    ...pastYearEndList,
+  ]
 
   // 연도별 장부금액 및 평잔 요약
   const yearBookMap = new Map<number, { 장부금액: number; 평잔: number; 실현손익: number }>()
@@ -251,7 +367,7 @@ export async function runPortfolioValuation(): Promise<{
   const totalProfit = computeTotalProfit(
     bookInfo,
     evalProfitRows || [],
-    returnAllRows || [],
+    combinedReturnRows,
     currentYear,
     currentEvalAmt,
     currentEvalProfit
@@ -259,7 +375,7 @@ export async function runPortfolioValuation(): Promise<{
 
   const profitVariation = computeProfitVariation(
     tComm3,
-    returnAllRows || [],
+    variationList,
     new Date()
   )
 

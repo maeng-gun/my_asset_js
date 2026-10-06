@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { fetchAll } from '@/lib/supabase/utils'
-import { subDays, parseISO, format } from 'date-fns'
+import { format } from 'date-fns'
 import { buildAssetPerformanceData } from '@/lib/engine/asset-performance'
+
+interface InvestmentReturnRow {
+  기준일: string
+  자산군: string
+  세부자산군: string
+  세부자산군2: string
+  총손익: number
+  평가금액: number
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,12 +20,36 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get('startDate') || ''
     const endDate = searchParams.get('endDate') || ''
 
-    // 2. 5대 자산군 투자성과 분석
-    const { data: returnRows, error } = await fetchAll(supabase, 'return', '기준일')
+    // 2. 5대 자산군 투자성과 분석 (startDate, endDate, 세부자산군2 빈값 DB 레벨 필터링)
+    const returnRows: InvestmentReturnRow[] = []
+    const limit = 1000
+    let start = 0
+    while (true) {
+      let query = supabase
+        .from('return')
+        .select('기준일, 자산군, 세부자산군, 세부자산군2, 총손익, 평가금액')
+        .or('세부자산군2.is.null,세부자산군2.eq.,세부자산군2.eq.""')
 
-    if (error) throw error
+      if (startDate) {
+        query = query.gte('기준일', startDate)
+      }
+      if (endDate) {
+        query = query.lte('기준일', endDate)
+      }
+      query = query.order('기준일', { ascending: true })
 
-    let base = (returnRows || []).map((r) => ({
+      const { data, error } = (await query.range(start, start + limit - 1)) as unknown as {
+        data: InvestmentReturnRow[] | null
+        error: Error | null
+      }
+      if (error) throw error
+      if (!data || data.length === 0) break
+      returnRows.push(...data)
+      if (data.length < limit) break
+      start += limit
+    }
+
+    let base = returnRows.map((r) => ({
       ...r,
       기준일: r.기준일.substring(0, 10),
     }))
@@ -33,7 +65,7 @@ export async function GET(req: NextRequest) {
     const bmData = await buildAssetPerformanceData(['선진국', '국내', '실물자산', '인컴자산', '채권'], activeStartDate, activeEndDate)
 
     // 헬퍼: 자산군별 MyPF 일별 수익률 산출 및 BM 병합
-    const calcMyPfAssetSeries = (bmKey: string, filterFn: (r: any) => boolean) => {
+    const calcMyPfAssetSeries = (bmKey: string, filterFn: (r: InvestmentReturnRow) => boolean) => {
       const filtered = base.filter(filterFn).sort((a, b) => a.기준일.localeCompare(b.기준일))
       const dateMap = new Map<string, { 총손익: number; 평가금액: number }>()
       for (const f of filtered) {
