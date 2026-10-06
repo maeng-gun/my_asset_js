@@ -358,7 +358,7 @@ class MyAssetDesktopApp:
         # private_mode=False 및 전용 storage_path 지정으로 로그인 쿠키/세션 영속 보존
         webview.start(
             gui='edgechromium',
-            debug=self.is_dev,
+            debug=True,
             icon=self.icon_path,
             private_mode=False,
             storage_path=self.user_data_dir
