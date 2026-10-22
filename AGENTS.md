@@ -10,3 +10,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Worktree Environment Guidelines
 - **Copy .env.local for Worktrees**: Whenever you are asked to start a local development server (e.g., Next.js) inside a branched worktree, ALWAYS check if .env.local exists. If not, you MUST copy the .env.local file from the parent repository before starting the server.
+
+# Supabase DDL & Migration Guidelines (Atomic Unit Rule)
+Whenever creating new tables or migrating Supabase DB schemas:
+- **Mandatory 4-Step Atomic Unit Execution**:
+  1. `CREATE TABLE public.xxx ...`
+  2. `GRANT ... ON public.xxx TO authenticated, service_role;` (and GRANT USAGE ON SEQUENCES)
+  3. `ALTER TABLE public.xxx ENABLE ROW LEVEL SECURITY;`
+  4. `CREATE POLICY ... ON public.xxx ...` (Must define `service_role` and `authenticated` policies; Never grant open C.R.U.D to `anon`).
+- Refer to `supabase/MIGRATION_GUIDE.md` for full template and checklist.
+
