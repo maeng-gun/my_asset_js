@@ -143,17 +143,20 @@ def is_port_in_use(port=3000):
         s.settimeout(0.5)
         return s.connect_ex(('127.0.0.1', port)) == 0
 
-def wait_for_server(url='http://localhost:3000', timeout=30):
+def wait_for_server(url='http://localhost:3000', timeout=90, process=None):
     start = time.time()
     while time.time() - start < timeout:
+        if process and process.poll() is not None:
+            return False
         try:
-            res = requests.get(url, timeout=1.0)
+            res = requests.get(url, timeout=2.0)
             if res.status_code < 500:
                 return True
         except requests.exceptions.RequestException:
             pass
-        time.sleep(0.3)
+        time.sleep(0.5)
     return False
+
 
 
 def get_base_dir():
@@ -217,8 +220,10 @@ class MyAssetDesktopApp:
             print("[Info] Node 프로세스가 Job Object에 성공적으로 편입되었습니다.")
 
         print(f"[Info] Next.js 서버 부팅 대기 중... ({self.server_url})")
-        if not wait_for_server(self.server_url):
-            raise RuntimeError("Next.js 서버가 제한 시간 내에 응답하지 않습니다.")
+        if not wait_for_server(self.server_url, timeout=90, process=self.node_process):
+            if self.node_process and self.node_process.poll() is not None:
+                raise RuntimeError(f"Next.js 서버 프로세스가 비정상 종료되었습니다. (종료 코드: {self.node_process.poll()})")
+            raise RuntimeError("Next.js 서버가 제한 시간(90초) 내에 응답하지 않습니다. 부팅 직후 리소스 지연일 수 있습니다.")
         print("[Info] Next.js 서버가 준비되었습니다.")
 
     def on_window_closing(self):
@@ -358,7 +363,7 @@ class MyAssetDesktopApp:
         # private_mode=False 및 전용 storage_path 지정으로 로그인 쿠키/세션 영속 보존
         webview.start(
             gui='edgechromium',
-            debug=True,
+            debug=self.is_dev,
             icon=self.icon_path,
             private_mode=False,
             storage_path=self.user_data_dir

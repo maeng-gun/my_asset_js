@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "desktop_tray_app.py", line 476, in <module>
+    app.run()
+  File "desktop_tray_app.py", line 343, in run
+    self.start_node_server()
+  File "desktop_tray_app.py", line 221, in start_node_server
+    raise RuntimeError("Next.js 서버가 제한 시간 내에 응답하지 않습니다.")
+RuntimeError: Next.js 서버가 제한 시간 내에 응답하지 않습니다.
