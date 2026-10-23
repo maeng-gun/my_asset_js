@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
@@ -20,6 +20,12 @@ import {
   Calendar,
   Layers,
 } from 'lucide-react'
+import {
+  useTradingFormStore,
+  useTradingFiltersStore,
+  useTradingTabStore,
+  resetTradingForm,
+} from '@/lib/stores/navigation-state'
 
 const TABS: TabItem[] = [
   { id: 'history', label: '거래내역', icon: Receipt },
@@ -29,54 +35,85 @@ const TABS: TabItem[] = [
 ]
 
 export default function TradingPage() {
-  const [activeTab, setActiveTab] = useState('history')
+  const [activeTab, setActiveTab] = useTradingTabStore()
   const queryClient = useQueryClient()
 
-  // 1. 거래내역 입력 폼 상태
-  const [tradeType, setTradeType] = useState<'투자자산' | '연금자산'>('투자자산')
-  const [account, setAccount] = useState('한투')
-  const [currency, setCurrency] = useState('원화')
-  const [tradeDate, setTradeDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [selectedTicker, setSelectedTicker] = useState('')
-  const [buyQ, setBuyQ] = useState(0)
-  const [buyAmt, setBuyAmt] = useState(0)
-  const [buyCash, setBuyCash] = useState(0)
-  const [sellQ, setSellQ] = useState(0)
-  const [sellPrincipal, setSellPrincipal] = useState(0)
-  const [sellAmt, setSellAmt] = useState(0)
-  const [dividend, setDividend] = useState(0)
-  const [cashIn, setCashIn] = useState(0)
-  const [inOut, setInOut] = useState(0)
-  const [limitCount, setLimitCount] = useState(30)
-  const [selectedRowId, setSelectedRowId] = useState<number | null>(null)
-  
+  // 1. 거래내역 입력 폼 상태 (navigation-state store 연동)
+  const [tradingForm, setTradingForm] = useTradingFormStore()
+  const {
+    tradeType,
+    account,
+    currency,
+    tradeDate,
+    selectedTicker,
+    buyQ,
+    buyAmt,
+    buyCash,
+    sellQ,
+    sellPrincipal,
+    sellAmt,
+    dividend,
+    cashIn,
+    inOut,
+    limitCount,
+    selectedRowId,
+  } = tradingForm
+
+  const setTradeType = (val: '투자자산' | '연금자산') => setTradingForm({ tradeType: val })
+  const setAccount = (val: string) => setTradingForm({ account: val })
+  const setCurrency = (val: string) => setTradingForm({ currency: val })
+  const setTradeDate = (val: string) => setTradingForm({ tradeDate: val })
+  const setSelectedTicker = (val: string) => setTradingForm({ selectedTicker: val })
+  const setBuyQ = (val: number) => setTradingForm({ buyQ: val })
+  const setBuyAmt = (val: number) => setTradingForm({ buyAmt: val })
+  const setBuyCash = (val: number) => setTradingForm({ buyCash: val })
+  const setSellQ = (val: number) => setTradingForm({ sellQ: val })
+  const setSellPrincipal = (val: number) => setTradingForm({ sellPrincipal: val })
+  const setSellAmt = (val: number) => setTradingForm({ sellAmt: val })
+  const setDividend = (val: number) => setTradingForm({ dividend: val })
+  const setCashIn = (val: number) => setTradingForm({ cashIn: val })
+  const setInOut = (val: number) => setTradingForm({ inOut: val })
+  const setLimitCount = (val: number) => setTradingForm({ limitCount: val })
+  const setSelectedRowId = (val: number | null) => setTradingForm({ selectedRowId: val })
+
   const setEditMode = (r: any) => {
-    setSelectedRowId(r.행번호)
-    setTradeDate(r.거래일자?.substring(0, 10))
-    setBuyQ(r.매입수량 || 0)
-    setBuyAmt(r.매입액 || 0)
-    setBuyCash(r.현금지출 || 0)
-    setSellQ(r.매도수량 || 0)
-    setSellPrincipal(r.매도원금 || 0)
-    setSellAmt(r.매도액 || 0)
-    setDividend(r.이자배당액 || 0)
-    setCashIn(r.현금수입 || 0)
-    setInOut(r.입출금 || 0)
-    
-    // Select ticker by code. It relies on tickersData containing the ticker.
-    setSelectedTicker(r.종목코드)
-    setAccount(r.계좌)
-    setCurrency(r.통화)
+    setTradingForm({
+      selectedRowId: r.행번호,
+      tradeDate: r.거래일자?.substring(0, 10),
+      buyQ: r.매입수량 || 0,
+      buyAmt: r.매입액 || 0,
+      buyCash: r.현금지출 || 0,
+      sellQ: r.매도수량 || 0,
+      sellPrincipal: r.매도원금 || 0,
+      sellAmt: r.매도액 || 0,
+      dividend: r.이자배당액 || 0,
+      cashIn: r.현금수입 || 0,
+      inOut: r.입출금 || 0,
+      selectedTicker: r.종목코드,
+      account: r.계좌,
+      currency: r.통화,
+    })
   }
 
-  // 종합거래내역 기간 필터 및 캐스케이딩 필터 상태
-  const [totalStartDate, setTotalStartDate] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'))
-  const [totalEndDate, setTotalEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [selAssetClass, setSelAssetClass] = useState('전체')
-  const [selAssetClass1, setSelAssetClass1] = useState('전체')
-  const [selAssetClass2, setSelAssetClass2] = useState('전체')
-  const [selAccount, setSelAccount] = useState('전체')
-  const [selProductName, setSelProductName] = useState('전체')  // 2. 종목 마스터 쿼리
+  // 종합거래내역 기간 필터 및 캐스케이딩 필터 상태 (navigation-state store 연동)
+  const [tradingFilters, setTradingFilters] = useTradingFiltersStore()
+  const {
+    totalStartDate,
+    totalEndDate,
+    selAssetClass,
+    selAssetClass1,
+    selAssetClass2,
+    selAccount,
+    selProductName,
+  } = tradingFilters
+
+  const setTotalStartDate = (val: string) => setTradingFilters({ totalStartDate: val })
+  const setTotalEndDate = (val: string) => setTradingFilters({ totalEndDate: val })
+  const setSelAssetClass = (val: string) => setTradingFilters({ selAssetClass: val })
+  const setSelAssetClass1 = (val: string) => setTradingFilters({ selAssetClass1: val })
+  const setSelAssetClass2 = (val: string) => setTradingFilters({ selAssetClass2: val })
+  const setSelAccount = (val: string) => setTradingFilters({ selAccount: val })
+  const setSelProductName = (val: string) => setTradingFilters({ selProductName: val })  // 2. 종목 마스터 쿼리
   const { data: tickersData } = useQuery({
     queryKey: ['tickers-list', tradeType],
     queryFn: async () => {
@@ -167,16 +204,13 @@ export default function TradingPage() {
       toast.success('거래내역이 추가되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['trade-history'] })
       queryClient.invalidateQueries({ queryKey: ['total-trades'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['profit-return-data'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
+      queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
       // 폼 리셋
-      setBuyQ(0)
-      setBuyAmt(0)
-      setBuyCash(0)
-      setSellQ(0)
-      setSellPrincipal(0)
-      setSellAmt(0)
-      setDividend(0)
-      setCashIn(0)
-      setInOut(0)
+      resetTradingForm()
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '추가 실패'
@@ -209,8 +243,12 @@ export default function TradingPage() {
       toast.success('거래내역이 수정되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['trade-history'] })
       queryClient.invalidateQueries({ queryKey: ['total-trades'] })
-      setSelectedRowId(null)
-      setBuyQ(0); setBuyAmt(0); setBuyCash(0); setSellQ(0); setSellPrincipal(0); setSellAmt(0); setDividend(0); setCashIn(0); setInOut(0);
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['profit-return-data'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
+      queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
+      resetTradingForm()
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '수정 실패'
@@ -218,7 +256,7 @@ export default function TradingPage() {
     },
   })
 
-const deleteTradeMutation = useMutation({
+  const deleteTradeMutation = useMutation({
     mutationFn: async (id: number) => {
       await deleteTrade(tradeType, id)
     },
@@ -226,7 +264,12 @@ const deleteTradeMutation = useMutation({
       toast.success('거래내역이 삭제되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['trade-history'] })
       queryClient.invalidateQueries({ queryKey: ['total-trades'] })
-      setSelectedRowId(null)
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['profit-return-data'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
+      queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
+      resetTradingForm()
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '삭제 실패'
@@ -505,8 +548,7 @@ const deleteTradeMutation = useMutation({
         </button>
         <button
           onClick={() => {
-            setSelectedRowId(null)
-            setBuyQ(0); setBuyAmt(0); setBuyCash(0); setSellQ(0); setSellPrincipal(0); setSellAmt(0); setDividend(0); setCashIn(0); setInOut(0);
+            resetTradingForm()
           }}
           className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-slate-700 hover:bg-slate-600 active:scale-95 text-white transition"
         >

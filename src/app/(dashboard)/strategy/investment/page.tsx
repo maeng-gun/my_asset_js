@@ -23,12 +23,12 @@ const TABS: TabItem[] = [
   { id: 'search', label: '종목탐색 (장기 정밀분석)', icon: Search },
 ]
 
-const ASSET_CLASSES = ['선진국', '국내', '실물자산', '인컴자산', '채권'] as const
+const ASSET_CLASSES = ['전체', '선진국', '국내', '실물자산', '인컴자산', '채권'] as const
 type AssetClassType = (typeof ASSET_CLASSES)[number]
 
 export default function InvestmentStrategyPage() {
   const [activeTab, setActiveTab] = useState('performance')
-  const [selectedAsset, setSelectedAsset] = useState<AssetClassType>('선진국')
+  const [selectedAsset, setSelectedAsset] = useState<AssetClassType>('전체')
   const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
@@ -122,7 +122,7 @@ export default function InvestmentStrategyPage() {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: {
-      data: ['MyPF 누적수익률', 'BM 누적수익률'],
+      data: selectedAsset === '전체' ? ['MyPF 누적수익률'] : ['MyPF 누적수익률', 'BM 누적수익률'],
       textStyle: { color: '#94a3b8' },
       right: '2%',
       top: '5%',
@@ -164,15 +164,19 @@ export default function InvestmentStrategyPage() {
         color: '#10b981',
         lineStyle: { width: 2.5 },
       },
-      {
-        name: 'BM 누적수익률',
-        type: 'line',
-        data: currentSeries.map((d) => d.BM),
-        smooth: true,
-        symbol: 'none',
-        color: '#94a3b8',
-        lineStyle: { width: 2, type: 'dashed' },
-      },
+      ...(selectedAsset === '전체'
+        ? []
+        : [
+            {
+              name: 'BM 누적수익률',
+              type: 'line',
+              data: currentSeries.map((d) => d.BM),
+              smooth: true,
+              symbol: 'none',
+              color: '#94a3b8',
+              lineStyle: { width: 2, type: 'dashed' },
+            },
+          ]),
     ],
   }
 
@@ -585,6 +589,7 @@ export default function InvestmentStrategyPage() {
           <Card>
             <CardHeader
               title={(() => {
+                if (selectedAsset === '전체') return '전체 포트폴리오 (MyPF 누적 성과)'
                 if (selectedAsset === '선진국') return '선진국 주식 (BM: ACE 미국S&P500, 360200)'
                 if (selectedAsset === '국내') return '국내 주식 (BM: ACE 코스피, 305050)'
                 if (selectedAsset === '실물자산') return '실물자산 (BM: ACE KRX금현물, 411060)'
@@ -592,7 +597,11 @@ export default function InvestmentStrategyPage() {
                 if (selectedAsset === '채권') return '채권 (BM: KODEX 국고채3년, 114460)'
                 return `${selectedAsset} (BM 대비 누적수익률)`
               })()}
-              subtitle="내 포트폴리오의 해당 자산군 수익률과 대표 벤치마크 지수의 누적 성과 비교"
+              subtitle={
+                selectedAsset === '전체'
+                  ? '내 전체 포트폴리오의 일별 손익 기반 기하 누적수익률 성과 추이'
+                  : '내 포트폴리오의 해당 자산군 수익률과 대표 벤치마크 지수의 누적 성과 비교'
+              }
             />
             <CardBody>
               <EChartsWrapper option={perfChartOption} height="360px" />

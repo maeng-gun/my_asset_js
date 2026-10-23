@@ -104,7 +104,8 @@ export function evaluateBalanceSheet(
   masterList: AssetMaster[],
   closingPricesMap: Map<string, number>,
   exchangeRates: { USD: number; JPY: number },
-  ovsBalances: Array<{ 종목코드: string; 평가금액: number }> = []
+  ovsBalances: Array<{ 종목코드: string; 평가금액: number }> = [],
+  prevUnitPriceMap?: Map<string, number>
 ): BalanceSheetRecord[] {
   const masterMap = new Map<string, AssetMaster>()
   for (const m of masterList) {
@@ -135,8 +136,15 @@ export function evaluateBalanceSheet(
     const ovsEvalAmt = ovsMap.get(`${r.계좌}_${r.종목코드}`) || 0
 
     const closingPrice = closingPricesMap.get(r.종목코드)
+    const prevPrice =
+      prevUnitPriceMap?.get(`${r.계좌}_${r.종목코드}`) ??
+      prevUnitPriceMap?.get(r.종목코드) ??
+      (prevUnitPriceMap ? prevUnitPriceMap.get(r.종목명) : undefined)
 
     const isStockOrFund = /^\d[a-zA-Z0-9]{4}\d$/.test(r.종목코드) || r.종목코드.startsWith('K5')
+    const isGold = r.계좌 === '금현물' || r.종목코드 === '04020000'
+    const isOvsMarket = r.계좌 === '불리오' && r.통화 !== '원화' && r.자산군 !== '현금성'
+    const isMarketPriced = isStockOrFund || isGold || isOvsMarket
 
     const bookAmt = r.장부금액 < 1 ? 0 : r.장부금액
     let evalAmt = bookAmt
@@ -145,10 +153,13 @@ export function evaluateBalanceSheet(
       evalAmt = ovsEvalAmt
     } else if (masterEvalAmt > 0) {
       evalAmt = masterEvalAmt
-    } else if (closingPrice !== undefined && closingPrice !== null && !isNaN(closingPrice)) {
+    } else if (isMarketPriced && closingPrice !== undefined && closingPrice !== null && !isNaN(closingPrice) && closingPrice > 0) {
       evalAmt = closingPrice * r.보유수량
-    } else if (isStockOrFund && r.보유수량 === 0) {
+    } else if (isMarketPriced && r.보유수량 === 0) {
       evalAmt = 0
+    } else if (isMarketPriced && r.보유수량 > 0 && prevPrice !== undefined && prevPrice > 0) {
+      // 최종 안전망: 시세 수신 실패 또는 고속 재계산 시 장부금액으로 덮어쓰지 않고 직전 유효 통화별 단가(평가금액 ÷ 보유수량) 적용
+      evalAmt = prevPrice * r.보유수량
     }
 
     result.push({
@@ -879,28 +890,29 @@ export function computeDetailedCommodityProfit(
     return b.평가금액 - a.평가금액
   })
 
-  // 2. comm_profit2 (자산군, 세부자산군, 세부자산군2, 통화, 종목명, 계좌, desc(평가금액))
+  // 2. comm_profit2 (자산군, 세부자산군, 세부자산군2, desc(평가금액), 계좌, 상품명)
   const commProfit2: DetailedCommodityProfit2Record[] = combined.map(buildRow)
   commProfit2.sort((a, b) => {
     const cA = CLASS_ORDER.indexOf(a.자산군)
     const cB = CLASS_ORDER.indexOf(b.자산군)
     if (cA !== cB) return (cA === -1 ? 999 : cA) - (cB === -1 ? 999 : cB)
 
-    const c2A = CLASS2_ORDER.indexOf(a.세부자산군)
-    const c2B = CLASS2_ORDER.indexOf(b.세부자산군)
+    const c2A = CLASS2_ORDER.indexOf(a.세부자산군 || '')
+    const c2B = CLASS2_ORDER.indexOf(b.세부자산군 || '')
     if (c2A !== c2B) return (c2A === -1 ? 999 : c2A) - (c2B === -1 ? 999 : c2B)
 
-    const curA = CURRENCY_ORDER.indexOf(a.통화)
-    const curB = CURRENCY_ORDER.indexOf(b.통화)
-    if (curA !== curB) return (curA === -1 ? 999 : curA) - (curB === -1 ? 999 : curB)
+    const c3A = CLASS3_ORDER.indexOf(a.세부자산군2 || '')
+    const c3B = CLASS3_ORDER.indexOf(b.세부자산군2 || '')
+    if (c3A !== c3B) return (c3A === -1 ? 999 : c3A) - (c3B === -1 ? 999 : c3B)
 
-    if (a.종목명 !== b.종목명) return a.종목명.localeCompare(b.종목명)
+    const evalDiff = (b.평가금액 || 0) - (a.평가금액 || 0)
+    if (evalDiff !== 0) return evalDiff
 
-    const aIdx = ACCOUNT_ORDER.indexOf(a.계좌)
-    const bIdx = ACCOUNT_ORDER.indexOf(b.계좌)
+    const aIdx = ACCOUNT_ORDER.indexOf(a.계좌 || '')
+    const bIdx = ACCOUNT_ORDER.indexOf(b.계좌 || '')
     if (aIdx !== bIdx) return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
 
-    return b.평가금액 - a.평가금액
+    return (a.상품명 || a.종목명 || '').localeCompare(b.상품명 || b.종목명 || '')
   })
 
   return { commProfit, commProfit2 }

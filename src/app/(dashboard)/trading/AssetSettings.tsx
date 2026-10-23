@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { getTickers, getCategories, addTicker, updateTicker, deleteTicker } from '@/lib/actions/db'
@@ -8,24 +7,38 @@ import { formatKRW } from '@/lib/utils'
 import { toast } from 'sonner'
 import { PlusCircle, Edit2, Trash2, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
+import { useAssetSettingsStore, resetAssetSettingsForm, DEFAULT_ASSET_SETTINGS_FORM } from '@/lib/stores/navigation-state'
 
 export default function AssetSettingsPage() {
   const queryClient = useQueryClient()
-  const [tradeType, setTradeType] = useState<'투자자산' | '연금자산'>('투자자산')
-  
-  // 폼 상태
-  const [isEditing, setIsEditing] = useState(false)
-  const [editId, setEditId] = useState<number | null>(null)
-  const [account, setAccount] = useState('')
-  const [ticker, setTicker] = useState('')
-  const [assName, setAssName] = useState('')
-  const [commName, setCommName] = useState('')
-  const [assClass, setAssClass] = useState('')
-  const [assClass1, setAssClass1] = useState('')
-  const [assClass2, setAssClass2] = useState('')
-  const [assCur, setAssCur] = useState('')
-  const [evalPrice, setEvalPrice] = useState(0)
-  const [maturityDate, setMaturityDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [form, setAssetSettingsForm] = useAssetSettingsStore()
+  const {
+    tradeType,
+    isEditing,
+    editId,
+    account,
+    ticker,
+    assName,
+    commName,
+    assClass,
+    assClass1,
+    assClass2,
+    assCur,
+    evalPrice,
+    maturityDate,
+  } = form
+
+  const setTradeType = (val: '투자자산' | '연금자산') => setAssetSettingsForm({ tradeType: val })
+  const setAccount = (val: string) => setAssetSettingsForm({ account: val })
+  const setTicker = (val: string) => setAssetSettingsForm({ ticker: val })
+  const setAssName = (val: string) => setAssetSettingsForm({ assName: val })
+  const setCommName = (val: string) => setAssetSettingsForm({ commName: val })
+  const setAssClass = (val: string) => setAssetSettingsForm({ assClass: val })
+  const setAssClass1 = (val: string) => setAssetSettingsForm({ assClass1: val })
+  const setAssClass2 = (val: string) => setAssetSettingsForm({ assClass2: val })
+  const setAssCur = (val: string) => setAssetSettingsForm({ assCur: val })
+  const setEvalPrice = (val: number) => setAssetSettingsForm({ evalPrice: val })
+  const setMaturityDate = (val: string) => setAssetSettingsForm({ maturityDate: val })
 
   const { data: tickersData, isLoading: isTickersLoading } = useQuery({
     queryKey: ['tickers-list', tradeType],
@@ -38,33 +51,24 @@ export default function AssetSettingsPage() {
   })
 
   const resetForm = () => {
-    setIsEditing(false)
-    setEditId(null)
-    setAccount('')
-    setTicker('')
-    setAssName('')
-    setCommName('')
-    setAssClass('')
-    setAssClass1('')
-    setAssClass2('')
-    setAssCur('')
-    setEvalPrice(0)
-    setMaturityDate(format(new Date(), 'yyyy-MM-dd'))
+    resetAssetSettingsForm()
   }
 
   const handleEdit = (t: any) => {
-    setIsEditing(true)
-    setEditId(t.행번호)
-    setAccount(t.계좌 || '')
-    setTicker(t.종목코드 || '')
-    setAssName(t.종목명 || '')
-    setCommName(t.상품명 || '')
-    setAssClass(t.자산군 || '')
-    setAssClass1(t.세부자산군 || '')
-    setAssClass2(t.세부자산군2 || '')
-    setAssCur(t.통화 || '')
-    setEvalPrice(t.평가금액 || 0)
-    setMaturityDate(t.만기일 || format(new Date(), 'yyyy-MM-dd'))
+    setAssetSettingsForm({
+      isEditing: true,
+      editId: t.행번호,
+      account: t.계좌 || '',
+      ticker: t.종목코드 || '',
+      assName: t.종목명 || '',
+      commName: t.상품명 || '',
+      assClass: t.자산군 || '',
+      assClass1: t.세부자산군 || '',
+      assClass2: t.세부자산군2 || '',
+      assCur: t.통화 || '',
+      evalPrice: t.평가금액 || 0,
+      maturityDate: t.만기일 || format(new Date(), 'yyyy-MM-dd'),
+    })
   }
 
   const saveMutation = useMutation({
@@ -90,6 +94,9 @@ export default function AssetSettingsPage() {
     onSuccess: () => {
       toast.success(isEditing ? '수정되었습니다.' : '추가되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['tickers-list'] })
+      queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['trade-history'] })
       resetForm()
     },
     onError: (err: any) => {
@@ -104,6 +111,10 @@ export default function AssetSettingsPage() {
     onSuccess: () => {
       toast.success('삭제되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['tickers-list'] })
+      queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['trade-history'] })
+      resetForm()
     },
     onError: (err: any) => {
       toast.error(`삭제 오류: ${err.message}`)
@@ -125,8 +136,10 @@ export default function AssetSettingsPage() {
               <select
                 value={tradeType}
                 onChange={(e) => {
-                  setTradeType(e.target.value as any)
-                  resetForm()
+                  setAssetSettingsForm({
+                    ...DEFAULT_ASSET_SETTINGS_FORM,
+                    tradeType: e.target.value as any,
+                  })
                 }}
                 className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
               >

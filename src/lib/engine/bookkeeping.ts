@@ -193,6 +193,11 @@ export function getBalanceSheet(
 
   // 현금성 예수금 잔액/평잔 맵핑 (mode == 'assets'인 경우)
   if (mode === 'assets') {
+    const recordMap = new Map<string, BalanceSheetRecord>()
+    for (const r of records) {
+      recordMap.set(`${r.종목명}_${r.거래일자}`, r)
+    }
+
     const cashMappings: Record<string, Record<string, string>> = {
       원화: {
         엔투ISA예수금: '엔투ISA',
@@ -249,8 +254,8 @@ export function getBalanceSheet(
           sumCashY += cumAcctCash
           const meanCash = countY > 0 ? sumCashY / countY : 0
 
-          // 해당 itemName 레코드 업데이트
-          const rec = records.find((r) => r.종목명 === itemName && r.거래일자 === d)
+          // 해당 itemName 레코드 업데이트 (Map O(1) 인덱싱 조회로 CPU 병목 해소)
+          const rec = recordMap.get(`${itemName}_${d}`)
           if (rec) {
             rec.장부금액 = cumAcctCash
             rec.평잔 = meanCash

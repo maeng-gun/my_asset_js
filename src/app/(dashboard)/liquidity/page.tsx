@@ -90,6 +90,8 @@ export default function LiquidityPage() {
       toast.success('유출입 내역이 추가되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['liquidity-inflow-list'] })
       queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
       handleSelectInflowRow('new')
     },
     onError: (err: unknown) => {
@@ -114,6 +116,8 @@ export default function LiquidityPage() {
       toast.success('유출입 내역이 수정되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['liquidity-inflow-list'] })
       queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
       handleSelectInflowRow('new')
     },
     onError: (err: unknown) => {
@@ -132,6 +136,8 @@ export default function LiquidityPage() {
       toast.success('유출입 내역이 삭제되었습니다.')
       queryClient.invalidateQueries({ queryKey: ['liquidity-inflow-list'] })
       queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['latest-portfolio-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
       handleSelectInflowRow('new')
     },
     onError: (err: unknown) => {

@@ -130,6 +130,7 @@ export async function GET(req: NextRequest) {
     }
 
     const performance = {
+      전체: calcMyPfAssetSeries('', (r) => r.자산군 === '<합계>'),
       선진국: calcMyPfAssetSeries('선진국', (r) => r.자산군 === '주식' && r.세부자산군 === '선진국' && (!r.세부자산군2 || r.세부자산군2 === '')),
       국내: calcMyPfAssetSeries('국내', (r) => r.자산군 === '주식' && ['국내', '신흥국'].includes(r.세부자산군) && (!r.세부자산군2 || r.세부자산군2 === '')),
       실물자산: calcMyPfAssetSeries('실물자산', (r) => r.자산군 === '대체자산' && r.세부자산군 === '실물자산' && (!r.세부자산군2 || r.세부자산군2 === '')),

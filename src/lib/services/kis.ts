@@ -159,40 +159,147 @@ export class KISService {
     }
   }
 
-  async getCurrentPrice(ticker: string): Promise<number | null> {
+  /**
+   * 관심종목 복수종목 시세 조회 (FHKST11300006)
+   * 1회 최대 30종목 지원, 초과 시 내부에서 30개 단위 분할 호출
+   */
+  async getMultipleCurrentPrices(tickers: string[]): Promise<Map<string, number>> {
+    const priceMap = new Map<string, number>()
+    if (!tickers || tickers.length === 0) return priceMap
+
+    const token = await this.getAuthToken()
+    if (!token) return priceMap
+
+    const BATCH_SIZE = 30
+    for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+      const batch = tickers.slice(i, i + BATCH_SIZE)
+      const params = new URLSearchParams()
+      batch.forEach((t, idx) => {
+        params.append(`FID_COND_MRKT_DIV_CODE_${idx + 1}`, 'J')
+        params.append(`FID_INPUT_ISCD_${idx + 1}`, t)
+      })
+
+      const url = `${this.config.urlBase}/uapi/domestic-stock/v1/quotations/intstock-multprice?${params.toString()}`
+
+      let success = false
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const resp = await fetch(url, {
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${token}`,
+              appkey: this.config.appKey,
+              appsecret: this.config.appSecret,
+              tr_id: 'FHKST11300006',
+              custtype: 'P',
+            },
+          })
+
+          if (!resp.ok) {
+            if (resp.status === 429) {
+              console.warn(`[KISService] Multi-price Rate limit (429) attempt ${attempt}. Waiting 1200ms...`)
+              await new Promise((r) => setTimeout(r, 1200))
+              continue
+            }
+            throw new Error(`HTTP ${resp.status}`)
+          }
+
+          const data = await resp.json()
+
+          // Rate limit 체크: EGW00201 또는 초당 거래건수 초과 메시지
+          if (data?.msg_cd === 'EGW00201' || (data?.msg1 && data.msg1.includes('초당 거래건수를 초과'))) {
+            console.warn(`[KISService] Multi-price RateLimit EGW00201 attempt ${attempt}. Waiting 1200ms...`)
+            await new Promise((r) => setTimeout(r, 1200))
+            continue
+          }
+
+          if (data?.rt_cd === '0' && Array.isArray(data?.output)) {
+            for (const item of data.output) {
+              const code = item.inter_shrn_iscd || item.stck_shrn_iscd || item.pdno
+              const price = parseFloat(item.inter2_prpr || item.stck_prpr)
+              if (code && !isNaN(price) && price > 0) {
+                priceMap.set(code, price)
+              }
+            }
+            success = true
+            break
+          }
+        } catch (err) {
+          console.warn(`[KISService] Multi-price batch ${Math.floor(i / BATCH_SIZE) + 1} attempt ${attempt} error:`, err)
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 500 * attempt))
+          }
+        }
+      }
+
+      if (!success) {
+        console.warn(`[KISService] Multi-price batch ${Math.floor(i / BATCH_SIZE) + 1} failed after 3 attempts. Fallback to single price query will handle items.`)
+      }
+
+      if (i + BATCH_SIZE < tickers.length) {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+
+    return priceMap
+  }
+
+  async getMultiCurrentPrices(tickers: string[]): Promise<Map<string, number>> {
+    return this.getMultipleCurrentPrices(tickers)
+  }
+
+  async getCurrentPrice(ticker: string, retries = 3): Promise<number | null> {
     const token = await this.getAuthToken()
     if (!token) return null
 
     const url = `${this.config.urlBase}/uapi/domestic-stock/v1/quotations/inquire-price?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=${ticker}`
 
-    try {
-      const resp = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${token}`,
-          appkey: this.config.appKey,
-          appsecret: this.config.appSecret,
-          tr_id: 'FHKST01010100',
-          custtype: 'P',
-        },
-      })
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const resp = await fetch(url, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`,
+            appkey: this.config.appKey,
+            appsecret: this.config.appSecret,
+            tr_id: 'FHKST01010100',
+            custtype: 'P',
+          },
+        })
 
-      if (!resp.ok) return null
-      const data = await resp.json()
-      if (data?.rt_cd !== '0') {
+        if (!resp.ok) {
+          if (resp.status === 429) {
+            console.warn(`[KISService] Single price rate limit (429) for ${ticker} (attempt ${attempt}). Waiting 1200ms...`)
+            await new Promise((r) => setTimeout(r, 1200))
+            continue
+          }
+          throw new Error(`HTTP ${resp.status}`)
+        }
+
+        const data = await resp.json()
+
+        // Rate limit 체크: EGW00201 또는 초당 거래건수 초과 메시지
+        if (data?.msg_cd === 'EGW00201' || (data?.msg1 && data.msg1.includes('초당 거래건수를 초과'))) {
+          console.warn(`[KISService] Single price RateLimit EGW00201 for ${ticker} (attempt ${attempt}). Waiting 1200ms...`)
+          await new Promise((r) => setTimeout(r, 1200))
+          continue
+        }
+
+        if (data?.rt_cd === '0' && data?.output?.stck_prpr) {
+          const price = parseFloat(data.output.stck_prpr)
+          if (!isNaN(price) && price > 0) {
+            return price
+          }
+        }
         return null
-      }
-      if (data?.output?.stck_prpr) {
-        const price = parseFloat(data.output.stck_prpr)
-        if (price > 0) {
-          return price
+      } catch (err) {
+        console.warn(`[KISService] Error fetching price for ${ticker} (attempt ${attempt}):`, err)
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 500 * attempt))
         }
       }
-      return null
-    } catch (err) {
-      console.error(`[KISService] Error fetching price for ${ticker}:`, err)
-      return null
     }
+    return null
   }
 
   async getDomesticBalance(): Promise<Array<{ 종목코드: string; 상품명: string; 평가금액: number }>> {

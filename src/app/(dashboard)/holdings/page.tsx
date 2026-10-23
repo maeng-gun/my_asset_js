@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useHoldingsTabStore } from '@/lib/stores/navigation-state'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
@@ -23,7 +23,7 @@ const TABS: TabItem[] = [
 ]
 
 export default function HoldingsPage() {
-  const [activeTab, setActiveTab] = useState('allocation')
+  const [activeTab, setActiveTab] = useHoldingsTabStore()
   // 1. 최신 포트폴리오 스냅샷 쿼리 (0.01초 로드)
   const { data: summary, isLoading } = useQuery({
     queryKey: ['latest-portfolio-summary'],

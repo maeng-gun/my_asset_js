@@ -19,6 +19,12 @@ import {
   Calendar,
 } from 'lucide-react'
 import { LatestPortfolioSummary } from '@/lib/engine/types'
+import {
+  CLASS_ORDER,
+  CLASS2_ORDER,
+  CLASS3_ORDER,
+  ACCOUNT_ORDER,
+} from '@/lib/engine/valuation'
 
 const TABS: TabItem[] = [
   { id: 'total', label: '종합손익', icon: TrendingUp },
@@ -674,18 +680,27 @@ export default function ProfitPage() {
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {(() => {
-                  const commodityOrder = new Map()
-                  ;(summary?.t_comm || []).forEach((h, i) => {
-                    if (h.상품명 && !commodityOrder.has(h.상품명)) {
-                      commodityOrder.set(h.상품명, i)
-                    }
-                  })
-
                   const sortedData = [...(summary?.comm_profit2 || [])].sort((a, b) => {
-                    const orderA = commodityOrder.get(a.상품명) ?? 999999
-                    const orderB = commodityOrder.get(b.상품명) ?? 999999
-                    if (orderA !== orderB) return orderA - orderB
-                    return (a.계좌 || '').localeCompare(b.계좌 || '')
+                    const cA = CLASS_ORDER.indexOf(a.자산군)
+                    const cB = CLASS_ORDER.indexOf(b.자산군)
+                    if (cA !== cB) return (cA === -1 ? 999 : cA) - (cB === -1 ? 999 : cB)
+
+                    const c2A = CLASS2_ORDER.indexOf(a.세부자산군 || '')
+                    const c2B = CLASS2_ORDER.indexOf(b.세부자산군 || '')
+                    if (c2A !== c2B) return (c2A === -1 ? 999 : c2A) - (c2B === -1 ? 999 : c2B)
+
+                    const c3A = CLASS3_ORDER.indexOf(a.세부자산군2 || '')
+                    const c3B = CLASS3_ORDER.indexOf(b.세부자산군2 || '')
+                    if (c3A !== c3B) return (c3A === -1 ? 999 : c3A) - (c3B === -1 ? 999 : c3B)
+
+                    const evalDiff = (b.평가금액 || 0) - (a.평가금액 || 0)
+                    if (evalDiff !== 0) return evalDiff
+
+                    const aIdx = ACCOUNT_ORDER.indexOf(a.계좌 || '')
+                    const bIdx = ACCOUNT_ORDER.indexOf(b.계좌 || '')
+                    if (aIdx !== bIdx) return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
+
+                    return (a.상품명 || a.종목명 || '').localeCompare(b.상품명 || b.종목명 || '')
                   })
 
                   return sortedData.map((r, i) => (

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/utils'
+import { fastRecalculatePortfolio } from '@/lib/engine/portfolio-runner'
 
 export async function getTickers(type: '투자자산' | '연금자산') {
   const supabase = createAdminClient()
@@ -163,6 +164,7 @@ export async function addTrade(type: '투자자산' | '연금자산', record: Re
   const { error } = await supabase.from(dailyTable).insert(newRecord)
   if (error) throw new Error(`[addTrade] ${error.message}`)
   
+  await fastRecalculatePortfolio()
   return true
 }
 
@@ -173,6 +175,7 @@ export async function deleteTrade(type: '투자자산' | '연금자산', id: num
   const { error } = await supabase.from(dailyTable).delete().eq('행번호', id)
   if (error) throw new Error(`[deleteTrade] ${error.message}`)
   
+  await fastRecalculatePortfolio()
   return true
 }
 
@@ -352,6 +355,7 @@ export async function addTicker(type: '투자자산' | '연금자산', record: R
   const { error } = await supabase.from(table).insert(newRecord)
   if (error) throw new Error(`[addTicker] ${error.message}`)
   
+  await fastRecalculatePortfolio()
   return true
 }
 
@@ -362,6 +366,7 @@ export async function updateTicker(type: '투자자산' | '연금자산', id: nu
   const { error } = await supabase.from(table).update(record).eq('행번호', id)
   if (error) throw new Error(`[updateTicker] ${error.message}`)
   
+  await fastRecalculatePortfolio()
   return true
 }
 
@@ -372,6 +377,7 @@ export async function deleteTicker(type: '투자자산' | '연금자산', id: nu
   const { error } = await supabase.from(table).delete().eq('행번호', id)
   if (error) throw new Error(`[deleteTicker] ${error.message}`)
   
+  await fastRecalculatePortfolio()
   return true
 }
 
@@ -403,4 +409,7 @@ export async function updateTrade(type: '투자자산' | '연금자산', id: num
     .eq('행번호', id)
     
   if (error) throw new Error(`[updateTrade] ${error.message}`)
+  
+  await fastRecalculatePortfolio()
+  return true
 }
