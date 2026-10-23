@@ -57,3 +57,4 @@ __pycache__/
 /dist/
 *.spec
 MyAsset.exe
+/AGY_Artifacts/
