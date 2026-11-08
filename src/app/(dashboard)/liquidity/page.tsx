@@ -147,7 +147,7 @@ export default function LiquidityPage() {
   })
 
   // 평가금액 5종 복합 추세선 ECharts 옵션
-  const trendList = (analyticsData?.evalTrend || []) as any[]
+  const trendList = ((analyticsData?.evalTrend || (analyticsData as any)?.data?.evalTrend) || []) as any[]
 
   const trendChartOption = {
     backgroundColor: 'transparent',
@@ -234,8 +234,8 @@ export default function LiquidityPage() {
     ],
   }
 
-  const liquidityData = analyticsData?.liquidityAnalysis
-  const maturityList = (analyticsData?.maturity || []) as any[]
+  const liquidityData = analyticsData?.liquidityAnalysis || (analyticsData as any)?.data?.liquidityAnalysis
+  const maturityList = ((analyticsData?.maturity || (analyticsData as any)?.data?.maturity) || []) as any[]
 
   return (
     <div className="space-y-6">

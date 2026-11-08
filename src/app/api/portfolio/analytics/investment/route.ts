@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TABLES } from '@/lib/supabase/tables'
 import { format } from 'date-fns'
 import { buildAssetPerformanceData } from '@/lib/engine/asset-performance'
 
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     let start = 0
     while (true) {
       let query = supabase
-        .from('return')
+        .from(TABLES.return)
         .select('기준일, 자산군, 세부자산군, 세부자산군2, 총손익, 평가금액')
         .or('세부자산군2.is.null,세부자산군2.eq.,세부자산군2.eq.""')
 

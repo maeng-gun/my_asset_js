@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TABLES } from '@/lib/supabase/tables'
 import { fetchAll } from '@/lib/supabase/utils'
 import { format, subYears } from 'date-fns'
 import {
@@ -19,18 +20,16 @@ export async function GET() {
       { data: inflowRows },
       { data: summaryRow },
       { data: assetsMaster },
-      { data: pensionMaster },
     ] = await Promise.all([
       supabase
-        .from('return')
+        .from(TABLES.return)
         .select('기준일, 자산군, 평가금액')
         .eq('자산군', '<합계>')
         .gte('기준일', oneYearAgo)
         .order('기준일', { ascending: true }),
-      fetchAll(supabase, 'inflow', '거래일자'),
-      supabase.from('latest_portfolio_summary').select('*').eq('id', 'latest').single(),
-      fetchAll(supabase, 'assets'),
-      fetchAll(supabase, 'pension'),
+      fetchAll(supabase, TABLES.inflow, '거래일자'),
+      supabase.from(TABLES.latest_portfolio_summary).select('*').eq('id', 'latest').single(),
+      fetchAll(supabase, TABLES.assets),
     ])
 
     const tComm2 = (summaryRow?.t_comm2 || []) as unknown as Parameters<typeof calcEvalTrendData>[2]
@@ -41,7 +40,7 @@ export async function GET() {
       tComm2,
       [],
       assetsMaster || [],
-      pensionMaster || []
+      []
     )
 
     const returnList = ((returnRows || []) as unknown) as Array<{ 기준일: string; 자산군: string; 평가금액: number }>
@@ -62,6 +61,11 @@ export async function GET() {
       evalTrend,
       maturity,
       liquidityAnalysis,
+      data: {
+        evalTrend,
+        maturity,
+        liquidityAnalysis,
+      },
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Liquidity analytics error'

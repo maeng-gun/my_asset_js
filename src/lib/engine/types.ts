@@ -55,6 +55,7 @@ export interface DailyTradeRaw {
   이자배당액: number
   현금수입: number
   입출금: number
+  환율?: number | null
   통화?: string
   종목명?: string
 }
@@ -67,13 +68,17 @@ export interface DailyTradeProcessed {
   거래일자: string
   순매입수량: number
   매입액: number
+  현금지출: number
+  매도수량: number
   매도원금: number
+  매도액: number
   수익: number
   비용: number
   실현손익: number
   현금수입: number
   입출금: number
-  현금지출: number
+  이자배당액?: number
+  환율?: number | null
 }
 
 export interface BalanceSheetRecord {
@@ -97,6 +102,14 @@ export interface BalanceSheetRecord {
   기초평가손익?: number
   평가손익증감?: number
   총손익?: number
+  // 외화 원단위 및 환율 보존 필드
+  외화장부금액?: number
+  외화평가금액?: number
+  외화평가손익?: number
+  외화실현손익?: number
+  외화매입단가?: number
+  장부환율?: number
+  현재환율?: number
 }
 
 export interface CommodityHoldingSummary {
@@ -113,6 +126,30 @@ export interface CommodityHoldingSummary {
   평가수익률: number
   계좌?: string
   통화?: string
+}
+
+export interface ForeignHoldingRecord {
+  계좌: string
+  자산군: string
+  세부자산군: string
+  세부자산군2: string
+  종목코드: string
+  종목명: string
+  상품명: string
+  통화: string
+  보유수량: number
+  외화매입단가: number
+  외화현재가: number
+  외화장부금액: number
+  외화평가금액: number
+  외화평가손익: number
+  외화수익률: number
+  원화환산장부금액: number
+  원화환산평가금액: number
+  원화환산평가손익: number
+  원화수익률: number
+  장부환율: number
+  현재환율: number
 }
 
 export interface TotalProfitRecord {
@@ -268,6 +305,7 @@ export interface LatestPortfolioSummary {
   t_comm3: AssetClassProfitRecord[]
   t_comm4: AccountProfitRecord[]
   t_comm10: CommodityHolding3Record[]
+  t_ovs_comm?: ForeignHoldingRecord[]
   comm_profit: DetailedCommodityProfitRecord[]
   comm_profit2: DetailedCommodityProfit2Record[]
 }

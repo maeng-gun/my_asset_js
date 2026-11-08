@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TABLES } from '@/lib/supabase/tables'
 import { fetchAll } from '@/lib/supabase/utils'
 
 export async function POST() {
@@ -9,7 +10,7 @@ export async function POST() {
 
     // 1. eval_profit에서 전년도 데이터 조회
     const { data: evalData, error: evalErr } = await supabase
-      .from('eval_profit')
+      .from(TABLES.eval_profit)
       .select('*')
       .eq('연도', lastYear)
 
@@ -33,31 +34,22 @@ export async function POST() {
 
     const promises = []
 
-    // 2. assets 테이블 갱신
-    const { data: assets } = await fetchAll(supabase, 'assets')
+    // 2. 통합 assets 테이블 갱신
+    const { data: assets } = await fetchAll(supabase, TABLES.assets)
     if (assets) {
       for (const a of (assets as any[])) {
         const key = `${a.계좌}_${a.종목코드}`
         const newLastEval = evalMap.get(key) || 0
-        promises.push(updateRow('assets', a.행번호, newLastEval))
+        promises.push(updateRow(TABLES.assets, a.행번호, newLastEval))
       }
     }
 
-    // 3. pension 테이블 갱신
-    const { data: pension } = await fetchAll(supabase, 'pension')
-    if (pension) {
-      for (const p of (pension as any[])) {
-        const key = `${p.계좌}_${p.종목코드}`
-        const newLastEval = evalMap.get(key) || 0
-        promises.push(updateRow('pension', p.행번호, newLastEval))
-      }
-    }
-    
-    await Promise.allSettled(promises)
+    await Promise.all(promises)
 
-    return NextResponse.json({ success: true, message: `전년도(${lastYear}년) 기초평가손익이 성공적으로 갱신되었습니다.` })
+    return NextResponse.json({ success: true, updatedCount: promises.length })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown renew-eval error'
+    const message = err instanceof Error ? err.message : 'Renew eval error'
+    console.error('[API /api/renew-eval] Error:', err)
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

@@ -5,8 +5,10 @@ import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { getTickers, getCategories, addTicker, updateTicker, deleteTicker } from '@/lib/actions/db'
 import { formatKRW } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useMemo } from 'react'
 import { PlusCircle, Edit2, Trash2, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
+import { ACCOUNT_ORDER } from '@/lib/engine/types'
 import { useAssetSettingsStore, resetAssetSettingsForm, DEFAULT_ASSET_SETTINGS_FORM } from '@/lib/stores/navigation-state'
 
 export default function AssetSettingsPage() {
@@ -41,8 +43,8 @@ export default function AssetSettingsPage() {
   const setMaturityDate = (val: string) => setAssetSettingsForm({ maturityDate: val })
 
   const { data: tickersData, isLoading: isTickersLoading } = useQuery({
-    queryKey: ['tickers-list', tradeType],
-    queryFn: async () => await getTickers(tradeType),
+    queryKey: ['tickers-list'],
+    queryFn: async () => await getTickers(),
   })
 
   const { data: categories } = useQuery({
@@ -123,30 +125,24 @@ export default function AssetSettingsPage() {
 
   const getCat = (key: string) => (categories || []).filter((c: any) => c.key === key).map((c: any) => c.value)
 
-  const accountOptions = tradeType === '투자자산' ? getCat('ass_account') : getCat('pen_account')
+  const accountOptions = useMemo(() => {
+    const ass = getCat('ass_account')
+    const pen = getCat('pen_account')
+    const all = Array.from(new Set([...ass, ...pen]))
+    return all.sort((a, b) => {
+      const ia = ACCOUNT_ORDER.indexOf(a)
+      const ib = ACCOUNT_ORDER.indexOf(b)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
+  }, [categories])
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader title="투자종목 관리" subtitle="종목 추가/수정/삭제" />
         <CardBody>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
-            <div>
-              <label className="text-xs text-slate-400 font-medium block mb-1">운용구분</label>
-              <select
-                value={tradeType}
-                onChange={(e) => {
-                  setAssetSettingsForm({
-                    ...DEFAULT_ASSET_SETTINGS_FORM,
-                    tradeType: e.target.value as any,
-                  })
-                }}
-                className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
-              >
-                <option value="투자자산">투자자산</option>
-                <option value="연금자산">연금자산</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-3 mb-4">
+            {/* 1st Row */}
             <div>
               <label className="text-xs text-slate-400 font-medium block mb-1">계좌</label>
               <select value={account} onChange={(e) => setAccount(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100">
@@ -167,6 +163,15 @@ export default function AssetSettingsPage() {
               <input type="text" value={commName} onChange={(e) => setCommName(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100" />
             </div>
             <div>
+              <label className="text-xs text-slate-400 font-medium block mb-1">통화</label>
+              <select value={assCur} onChange={(e) => setAssCur(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100">
+                <option value="">선택</option>
+                {getCat('ass_cur').map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+
+            {/* 2nd Row */}
+            <div>
               <label className="text-xs text-slate-400 font-medium block mb-1">자산군</label>
               <select value={assClass} onChange={(e) => setAssClass(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100">
                 <option value="">선택</option>
@@ -185,13 +190,6 @@ export default function AssetSettingsPage() {
               <select value={assClass2} onChange={(e) => setAssClass2(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100">
                 <option value="">선택</option>
                 {getCat('ass_class2').map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 font-medium block mb-1">통화</label>
-              <select value={assCur} onChange={(e) => setAssCur(e.target.value)} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100">
-                <option value="">선택</option>
-                {getCat('ass_cur').map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             </div>
             <div>

@@ -11,6 +11,8 @@ export interface TradingFormState {
   currency: string
   tradeDate: string
   selectedTicker: string
+  fxRate?: number | string
+  autoLinkWonCash?: boolean
   buyQ: number
   buyAmt: number
   buyCash: number
@@ -51,7 +53,7 @@ export interface AssetSettingsFormState {
 }
 
 export type TradingTab = 'history' | 'asset' | 'group' | 'total' | 'aggregate' | 'assets' | string
-export type HoldingsTab = 'allocation' | 'commodity1' | 'commodity2' | 'commodity3' | string
+export type HoldingsTab = 'allocation' | 'commodity1' | 'commodity2' | 'commodity3' | 'foreign' | string
 
 export interface NavigationState {
   tradingForm: TradingFormState
@@ -67,6 +69,8 @@ export const DEFAULT_TRADING_FORM: TradingFormState = {
   currency: '원화',
   tradeDate: format(new Date(), 'yyyy-MM-dd'),
   selectedTicker: '',
+  fxRate: '',
+  autoLinkWonCash: false,
   buyQ: 0,
   buyAmt: 0,
   buyCash: 0,

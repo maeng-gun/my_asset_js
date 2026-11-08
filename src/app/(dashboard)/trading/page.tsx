@@ -18,8 +18,8 @@ import {
   Edit2,
   Trash2,
   Calendar,
-  Layers,
 } from 'lucide-react'
+import { ACCOUNT_ORDER } from '@/lib/engine/types'
 import {
   useTradingFormStore,
   useTradingFiltersStore,
@@ -46,6 +46,8 @@ export default function TradingPage() {
     currency,
     tradeDate,
     selectedTicker,
+    fxRate,
+    autoLinkWonCash,
     buyQ,
     buyAmt,
     buyCash,
@@ -64,6 +66,8 @@ export default function TradingPage() {
   const setCurrency = (val: string) => setTradingForm({ currency: val })
   const setTradeDate = (val: string) => setTradingForm({ tradeDate: val })
   const setSelectedTicker = (val: string) => setTradingForm({ selectedTicker: val })
+  const setFxRate = (val: number | string) => setTradingForm({ fxRate: val })
+  const setAutoLinkWonCash = (val: boolean) => setTradingForm({ autoLinkWonCash: val })
   const setBuyQ = (val: number) => setTradingForm({ buyQ: val })
   const setBuyAmt = (val: number) => setTradingForm({ buyAmt: val })
   const setBuyCash = (val: number) => setTradingForm({ buyCash: val })
@@ -74,7 +78,6 @@ export default function TradingPage() {
   const setCashIn = (val: number) => setTradingForm({ cashIn: val })
   const setInOut = (val: number) => setTradingForm({ inOut: val })
   const setLimitCount = (val: number) => setTradingForm({ limitCount: val })
-  const setSelectedRowId = (val: number | null) => setTradingForm({ selectedRowId: val })
 
   const setEditMode = (r: any) => {
     setTradingForm({
@@ -92,10 +95,12 @@ export default function TradingPage() {
       selectedTicker: r.종목코드,
       account: r.계좌,
       currency: r.통화,
+      fxRate: r.환율 !== undefined && r.환율 !== null ? r.환율 : (r.통화 === '원화' ? 1 : ''),
+      autoLinkWonCash: false,
     })
   }
 
-  // 종합거래내역 기간 필터 및 캐스케이딩 필터 상태 (navigation-state store 연동)
+  // 종합거래내역 기간 필터 및 캐스케이딩 필터 상태
   const [tradingFilters, setTradingFilters] = useTradingFiltersStore()
   const {
     totalStartDate,
@@ -113,19 +118,21 @@ export default function TradingPage() {
   const setSelAssetClass1 = (val: string) => setTradingFilters({ selAssetClass1: val })
   const setSelAssetClass2 = (val: string) => setTradingFilters({ selAssetClass2: val })
   const setSelAccount = (val: string) => setTradingFilters({ selAccount: val })
-  const setSelProductName = (val: string) => setTradingFilters({ selProductName: val })  // 2. 종목 마스터 쿼리
+  const setSelProductName = (val: string) => setTradingFilters({ selProductName: val })
+
+  // 2. 종목 마스터 쿼리
   const { data: tickersData } = useQuery({
-    queryKey: ['tickers-list', tradeType],
+    queryKey: ['tickers-list'],
     queryFn: async () => {
-      return await getTickers(tradeType)
+      return await getTickers()
     },
   })
 
   // 3. 일별 거래내역 쿼리
-  const { data: tradeHistory, isLoading } = useQuery({
-    queryKey: ['trade-history', tradeType, account, currency, limitCount],
+  const { data: tradeHistory } = useQuery({
+    queryKey: ['trade-history', account, currency, limitCount],
     queryFn: async () => {
-      return await getTradeHistory(tradeType, account, currency, limitCount)
+      return await getTradeHistory('투자자산', account, currency, limitCount)
     },
   })
 
@@ -137,12 +144,19 @@ export default function TradingPage() {
     },
   })
 
-  // 동적 계좌 목록 계산
+  // 동적 계좌 목록 계산 (모든 계좌 포함)
   const availableAccounts = useMemo(() => {
     if (!categories) return []
-    const key = tradeType === '투자자산' ? 'ass_account' : 'pen_account'
-    return categories.filter((c: any) => c.key === key).map((c: any) => c.value)
-  }, [categories, tradeType])
+    const accounts = categories
+      .filter((c: any) => c.key === 'ass_account' || c.key === 'pen_account')
+      .map((c: any) => c.value)
+    const unique = Array.from(new Set(accounts))
+    return unique.sort((a: string, b: string) => {
+      const ia = ACCOUNT_ORDER.indexOf(a)
+      const ib = ACCOUNT_ORDER.indexOf(b)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
+  }, [categories])
 
   // 계좌 목록 변경 시 첫 번째 항목 자동 선택
   useEffect(() => {
@@ -167,8 +181,8 @@ export default function TradingPage() {
     }
   }, [availableCurrencies, currency, selectedRowId])
 
-  // 5. 종합거래내역 API 쿼리 (단가 및 계층분류 집계)
-  const { data: totalTradesData, isLoading: isLoadingTotal } = useQuery({
+  // 5. 종합거래내역 API 쿼리
+  const { data: totalTradesData } = useQuery({
     queryKey: ['total-trades', 'all'],
     queryFn: async () => {
       const res = await fetch(
@@ -184,10 +198,12 @@ export default function TradingPage() {
   // 거래내역 추가 Mutation
   const addTradeMutation = useMutation({
     mutationFn: async () => {
+      const parsedRate = fxRate !== '' && fxRate !== undefined && fxRate !== null ? Number(fxRate) : (currency === '원화' ? 1 : null)
       const newRecord = {
         계좌: account,
         종목코드: selectedTicker,
         거래일자: tradeDate,
+        환율: parsedRate,
         매입수량: buyQ,
         매입액: buyAmt,
         현금지출: buyCash,
@@ -198,7 +214,7 @@ export default function TradingPage() {
         현금수입: cashIn,
         입출금: inOut,
       }
-      await addTrade(tradeType, newRecord)
+      await addTrade(tradeType, newRecord, { autoLinkWonCash: Boolean(autoLinkWonCash) })
     },
     onSuccess: () => {
       toast.success('거래내역이 추가되었습니다.')
@@ -209,7 +225,6 @@ export default function TradingPage() {
       queryClient.invalidateQueries({ queryKey: ['summary-return-trend'] })
       queryClient.invalidateQueries({ queryKey: ['liquidity-analytics'] })
       queryClient.invalidateQueries({ queryKey: ['asset-settings'] })
-      // 폼 리셋
       resetTradingForm()
     },
     onError: (err: unknown) => {
@@ -218,15 +233,16 @@ export default function TradingPage() {
     },
   })
 
-  // 거래내역 삭제 Mutation
-  
+  // 거래내역 수정 Mutation
   const updateTradeMutation = useMutation({
     mutationFn: async () => {
       if (!selectedRowId) return
+      const parsedRate = fxRate !== '' && fxRate !== undefined && fxRate !== null ? Number(fxRate) : (currency === '원화' ? 1 : null)
       const updateRecord = {
         계좌: account,
         종목코드: selectedTicker,
         거래일자: tradeDate,
+        환율: parsedRate,
         매입수량: buyQ,
         매입액: buyAmt,
         현금지출: buyCash,
@@ -256,6 +272,7 @@ export default function TradingPage() {
     },
   })
 
+  // 거래내역 삭제 Mutation
   const deleteTradeMutation = useMutation({
     mutationFn: async (id: number) => {
       await deleteTrade(tradeType, id)
@@ -281,7 +298,6 @@ export default function TradingPage() {
   const processedData = useMemo(() => {
     if (!totalTradesData) return { filtered: [], totals: null, options: {} }
 
-    // 1. Cascading options based on RAW data
     const options = {
       assetClasses: ['전체', ...Array.from(new Set(totalTradesData.map((t: any) => t['자산군']).filter(Boolean)))],
       assetClasses1: ['전체', ...Array.from(new Set(totalTradesData
@@ -314,36 +330,45 @@ export default function TradingPage() {
         .filter(Boolean)))],
     }
 
-    // 2. Filter rows by BOTH cascading filters AND Date Range
-    const startDateObj = new Date(totalStartDate)
-    const endDateObj = new Date(totalEndDate)
+    const filtered = totalTradesData
+      .filter((t: any) => {
+        const d = t['거래일자'] ? t['거래일자'].substring(0, 10) : ''
+        if (totalStartDate && d < totalStartDate) return false
+        if (totalEndDate && d > totalEndDate) return false
+        if (selAssetClass !== '전체' && t['자산군'] !== selAssetClass) return false
+        if (selAssetClass1 !== '전체' && t['세부자산군'] !== selAssetClass1) return false
+        if (selAssetClass2 !== '전체' && t['세부자산군2'] !== selAssetClass2) return false
+        if (selAccount !== '전체' && t['계좌'] !== selAccount) return false
+        if (selProductName !== '전체' && t['상품명'] !== selProductName) return false
+        return true
+      })
+      .sort((a: any, b: any) => {
+        if (a['거래일자'] !== b['거래일자']) {
+          return a['거래일자'] < b['거래일자'] ? 1 : -1
+        }
+        return (b['행번호'] || 0) - (a['행번호'] || 0)
+      })
 
-    const filtered = totalTradesData.filter((t: any) => {
-      const rowDateObj = new Date(t['거래일자']?.substring(0, 10))
-      const dateMatch = rowDateObj >= startDateObj && rowDateObj <= endDateObj
-      if (!dateMatch) return false
-
-      if (selAssetClass !== '전체' && t['자산군'] !== selAssetClass) return false
-      if (selAssetClass1 !== '전체' && t['세부자산군'] !== selAssetClass1) return false
-      if (selAssetClass2 !== '전체' && t['세부자산군2'] !== selAssetClass2) return false
-      if (selAccount !== '전체' && t['계좌'] !== selAccount) return false
-      if (selProductName !== '전체' && t['상품명'] !== selProductName) return false
-      return true
-    })
-
-    // 3. Compute Totals for the filtered subset
-    const totals = {
-      상품명: '합계',
-      매입액: 0,
-      매도액: 0,
-    }
-    filtered.forEach((t: any) => {
-      totals.매입액 += (t['매입액'] || 0)
-      totals.매도액 += (t['매도액'] || 0)
-    })
+    const totals = filtered.reduce(
+      (acc: any, cur: any) => {
+        acc.매입액 += cur['매입액'] || 0
+        acc.매도액 += cur['매도액'] || 0
+        return acc
+      },
+      { 매입액: 0, 매도액: 0 }
+    )
 
     return { filtered, totals, options }
-  }, [totalTradesData, selAssetClass, selAssetClass1, selAssetClass2, selAccount, selProductName, totalStartDate, totalEndDate])
+  }, [
+    totalTradesData,
+    totalStartDate,
+    totalEndDate,
+    selAssetClass,
+    selAssetClass1,
+    selAssetClass2,
+    selAccount,
+    selProductName,
+  ])
 
   return (
     <div className="space-y-6">
@@ -355,20 +380,10 @@ export default function TradingPage() {
         <div className="space-y-6">
           {/* 입력 카드 */}
           <Card>
-            <CardHeader title="거래내역 입력" subtitle="신규 거래 등록, 수정 및 삭제" />
+            <CardHeader title="거래내역 입력" subtitle="신규 거래 등록, 수정 및 삭제 (외화 거래 환율 입력 지원)" />
             <CardBody>
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 font-medium block mb-1">운용구분</label>
-                  <select
-                    value={tradeType}
-                    onChange={(e) => setTradeType(e.target.value as any)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
-                  >
-                    <option value="투자자산">투자자산</option>
-                    <option value="연금자산">연금자산</option>
-                  </select>
-                </div>
+                {/* 1st Row */}
                 <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">계좌</label>
                   <select
@@ -400,6 +415,24 @@ export default function TradingPage() {
                       <option value="">통화 없음</option>
                     )}
                   </select>
+                </div>
+                <div>
+                  <label className="text-xs text-sky-400 font-medium block mb-1">
+                    {currency === '원화' ? '환율 (고정 1)' : currency === '엔화' ? '환율 (100¥=원)' : '환율 ($1=원)'}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    disabled={currency === '원화'}
+                    value={currency === '원화' ? '1' : (fxRate !== undefined && fxRate !== null ? fxRate : '')}
+                    onChange={(e) => setFxRate(e.target.value)}
+                    placeholder={currency === '엔화' ? '예: 912.34' : '예: 1435.50'}
+                    className={`w-full px-2.5 py-1.5 bg-slate-950 border rounded-lg text-xs font-mono ${
+                      currency === '원화'
+                        ? 'border-slate-800 text-slate-500 cursor-not-allowed'
+                        : 'border-sky-500/50 text-sky-200 focus:border-sky-400'
+                    }`}
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">매입수량</label>
@@ -446,7 +479,7 @@ export default function TradingPage() {
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
                   />
                 </div>
-                
+
                 {/* 2nd Row */}
                 <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">거래일자</label>
@@ -458,14 +491,14 @@ export default function TradingPage() {
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 cursor-pointer"
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">종목명</label>
                   <select
                     value={selectedTicker}
                     onChange={(e) => setSelectedTicker(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
                   >
-                    <option value="">종목을 선택하세요</option>
+                    <option value="">종목 선택</option>
                     {(tickersData || [])
                       .filter((t) => t.계좌 === account)
                       .map((t) => (
@@ -502,7 +535,6 @@ export default function TradingPage() {
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
                   />
                 </div>
-
                 <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">현금수입</label>
                   <input
@@ -512,7 +544,6 @@ export default function TradingPage() {
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
                   />
                 </div>
-
                 <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">조회건수</label>
                   <input
@@ -524,54 +555,71 @@ export default function TradingPage() {
                 </div>
               </div>
 
+              {/* 외화 예수금 환전 연동 옵션 */}
+              {currency !== '원화' && (
+                <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="autoLinkWonCash"
+                    checked={Boolean(autoLinkWonCash)}
+                    onChange={(e) => setAutoLinkWonCash(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-sky-500/30"
+                  />
+                  <label htmlFor="autoLinkWonCash" className="text-xs text-slate-300 cursor-pointer">
+                    계좌 내 원화예수금 환전 동시 반영 (외화 입출금 입력 시 지정 환율로 동일 계좌 원화예수금에 상계 입출금 자동 생성)
+                  </label>
+                </div>
+              )}
+
               {/* 액션 버튼 */}
               <div className="flex items-center justify-center gap-3 mt-5 pt-4 border-t border-slate-800">
-    {selectedRowId ? (
-      <>
-        <button
-          onClick={() => updateTradeMutation.mutate()}
-          disabled={!selectedTicker || updateTradeMutation.isPending}
-          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
-        >
-          <Edit2 className="w-4 h-4" />
-          수정 저장 (No.{selectedRowId})
-        </button>
-        <button
-          onClick={() => {
-            if(confirm('삭제하시겠습니까?')) deleteTradeMutation.mutate(selectedRowId);
-          }}
-          disabled={deleteTradeMutation.isPending}
-          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition disabled:opacity-50"
-        >
-          <Trash2 className="w-4 h-4" />
-          삭제
-        </button>
-        <button
-          onClick={() => {
-            resetTradingForm()
-          }}
-          className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-slate-700 hover:bg-slate-600 active:scale-95 text-white transition"
-        >
-          취소
-        </button>
-      </>
-    ) : (
-      <button
-        onClick={() => addTradeMutation.mutate()}
-        disabled={!selectedTicker || addTradeMutation.isPending}
-        className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
-      >
-        <PlusCircle className="w-4 h-4" />
-        거래 추가
-      </button>
-    )}
-  </div>
+                {selectedRowId ? (
+                  <>
+                    <button
+                      onClick={() => updateTradeMutation.mutate()}
+                      disabled={!selectedTicker || updateTradeMutation.isPending}
+                      className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      수정 저장 (No.{selectedRowId})
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('삭제하시겠습니까?')) deleteTradeMutation.mutate(selectedRowId)
+                      }}
+                      disabled={deleteTradeMutation.isPending}
+                      className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      삭제
+                    </button>
+                    <button
+                      onClick={() => resetTradingForm()}
+                      className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-slate-700 hover:bg-slate-600 active:scale-95 text-white transition"
+                    >
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => addTradeMutation.mutate()}
+                    disabled={!selectedTicker || addTradeMutation.isPending}
+                    className="flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition disabled:opacity-50"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    거래 추가
+                  </button>
+                )}
+              </div>
             </CardBody>
           </Card>
 
           {/* 내역 테이블 */}
           <Card>
-            <CardHeader title={`최근 거래내역 (${account} / ${tradeType})`} subtitle="행을 클릭하여 삭제 대상을 선택할 수 있습니다" />
+            <CardHeader
+              title={`최근 거래내역 (${account})`}
+              subtitle="행을 클릭하면 상단 입력창에서 수정 또는 삭제할 수 있습니다"
+            />
             <CardBody className="p-0 overflow-auto max-h-[calc(100vh-350px)]">
               <table className="w-full text-xs sm:text-sm text-left border-collapse">
                 <thead className="sticky top-0 z-10">
@@ -579,6 +627,7 @@ export default function TradingPage() {
                     <th className="py-3 px-3 text-center">행번호</th>
                     <th className="py-3 px-3">거래일자</th>
                     <th className="py-3 px-3">종목명</th>
+                    <th className="py-3 px-3 text-right text-sky-400">환율</th>
                     <th className="py-3 px-3 text-right">매입수량</th>
                     <th className="py-3 px-3 text-right text-emerald-400">매입액</th>
                     <th className="py-3 px-3 text-right">현금지출</th>
@@ -610,6 +659,19 @@ export default function TradingPage() {
                         <td className="py-2.5 px-3 font-sans font-medium text-slate-200">
                           {tickersData?.find((t: any) => t.종목코드 === r.종목코드)?.종목명 || r.종목코드}
                         </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-sky-300">
+                          {r.환율 ? (
+                            r.통화 === '엔화'
+                              ? Number(r.환율).toLocaleString()
+                              : Number(r.환율).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })
+                          ) : r.통화 !== '원화' ? (
+                            <span className="text-amber-400 font-sans text-xs px-1.5 py-0.5 rounded bg-amber-500/10">
+                              미입력
+                            </span>
+                          ) : (
+                            '1'
+                          )}
+                        </td>
                         <td className="py-2.5 px-3 text-right">{formatKRW(r.매입수량)}</td>
                         <td className="py-2.5 px-3 text-right text-emerald-400 font-medium">{formatKRW(r.매입액)}</td>
                         <td className="py-2.5 px-3 text-right">{formatKRW(r.현금지출)}</td>
@@ -633,13 +695,13 @@ export default function TradingPage() {
         </div>
       )}
 
-      {/* 탭 4: 종합거래내역 (단가 연산 및 기간별 전체 거래 집계) */}
-      {/* 탭2: 투자종목 관리 */}
+      {/* 탭 2: 투자종목 관리 */}
       {activeTab === 'asset' && <AssetSettings />}
 
-      {/* 탭3: 구분항목 관리 */}
+      {/* 탭 3: 구분항목 관리 */}
       {activeTab === 'group' && <GroupSettings />}
 
+      {/* 탭 4: 종합거래내역 */}
       {activeTab === 'total' && (
         <div className="space-y-6">
           <div className="flex flex-col gap-4 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-xs">

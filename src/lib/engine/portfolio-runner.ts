@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TABLES } from '@/lib/supabase/tables'
 import { KISService } from '@/lib/services/kis'
 import { MarketDataService } from '@/lib/services/market-crawler'
 import { getDailyTrading, getBalanceSheet } from './bookkeeping'
@@ -10,7 +11,7 @@ import {
   computeDetailedCommodityProfit,
 } from './valuation'
 import { computeTotalProfit, computeProfitVariation } from './analytics'
-import { AssetMaster, DailyTradeRaw, LatestPortfolioSummary } from './types'
+import { AssetMaster, DailyTradeRaw, LatestPortfolioSummary, ForeignHoldingRecord } from './types'
 import { format, subDays, subMonths, subYears } from 'date-fns'
 
 import { fetchAll } from '@/lib/supabase/utils'
@@ -55,6 +56,7 @@ interface SnapshotSummarySlice {
     장부금액?: number
     평가금액?: number
   }>
+  t_ovs_comm?: ForeignHoldingRecord[]
 }
 
 /**
@@ -72,10 +74,25 @@ function extractSnapshotPricesAndRates(latestSummaryRaw: SnapshotSummarySlice | 
     return { prevUnitPriceMap, derivedExchangeRates }
   }
 
+  // 1. t_ovs_comm이 존재하는 경우 외화 단가 및 환율 최우선 추출
+  if (latestSummaryRaw.t_ovs_comm && latestSummaryRaw.t_ovs_comm.length > 0) {
+    for (const item of latestSummaryRaw.t_ovs_comm) {
+      if (item.통화 === '달러' && item.현재환율 && item.현재환율 > 0) {
+        derivedExchangeRates.USD = item.현재환율
+      } else if (item.통화 === '엔화' && item.현재환율 && item.현재환율 > 0) {
+        derivedExchangeRates.JPY = item.현재환율
+      }
+      if (item.외화현재가 && item.외화현재가 > 0) {
+        prevUnitPriceMap.set(item.종목코드, item.외화현재가)
+        if (item.계좌) prevUnitPriceMap.set(`${item.계좌}_${item.종목코드}`, item.외화현재가)
+      }
+    }
+  }
+
   const commProfitList = latestSummaryRaw.comm_profit || []
   const tComm2List = latestSummaryRaw.t_comm2 || []
 
-  // 1. 직전 스냅샷 환율 복원 (장부금액 원화환산 비율 및 달러자산/엔화자산 평가금액 비율 활용)
+  // 2. 레거시 스냅샷 환율 복원 (t_ovs_comm 미존재 시 대비)
   const commProfitByKey = new Map<string, NonNullable<SnapshotSummarySlice['comm_profit']>[number]>()
   let cleanDollarEvalSum = 0
   let cleanDollarCount = 0
@@ -89,7 +106,6 @@ function extractSnapshotPricesAndRates(latestSummaryRaw: SnapshotSummarySlice | 
       dollarAssetWonEval = c.평가금액
     }
     if (c.통화 === '달러' && c.평가금액 && c.평가금액 > 0) {
-      // 원화 환율이 중복 곱해지지 않은 정상 달러 평가금액인지 검증 (장부금액 대비 100배 미만)
       if (!c.장부금액 || c.장부금액 <= 0 || c.평가금액 / c.장부금액 < 100) {
         cleanDollarEvalSum += c.평가금액
         cleanDollarCount++
@@ -103,7 +119,6 @@ function extractSnapshotPricesAndRates(latestSummaryRaw: SnapshotSummarySlice | 
       derivedExchangeRates.USD = Number(ratio.toFixed(4))
     }
   } else {
-    // 장부금액 비율로 USD 환율 역산
     for (const r of tComm2List) {
       if (r.통화 === '달러' && r.장부금액 && r.장부금액 > 0 && r.계좌 && r.종목명) {
         const cp = commProfitByKey.get(`${r.계좌}_${r.종목명}`)
@@ -118,13 +133,13 @@ function extractSnapshotPricesAndRates(latestSummaryRaw: SnapshotSummarySlice | 
     }
   }
 
-  // 2. 시장가 평가 대상 종목(주식/ETF/펀드/금현물/불리오 해외주식)의 고유 통화 단가 추출
+  // 3. 시장가 평가 대상 종목의 고유 통화 단가 추출
   for (const r of tComm2List) {
     if (!r.종목코드 || !r.보유수량 || r.보유수량 <= 0 || !r.평가금액 || r.평가금액 <= 0) continue
 
     const isStockOrFund = /^\d[a-zA-Z0-9]{4}\d$/.test(r.종목코드) || r.종목코드.startsWith('K5')
     const isGold = r.계좌 === '금현물' || r.종목코드 === '04020000'
-    const isOvsMarket = r.계좌 === '불리오' && r.통화 !== '원화' && r.자산군 !== '현금성'
+    const isOvsMarket = (r.계좌 === '불리오' || r.계좌 === '한투') && r.통화 !== '원화' && r.자산군 !== '현금성'
 
     if (!isStockOrFund && !isGold && !isOvsMarket) continue
 
@@ -134,20 +149,9 @@ function extractSnapshotPricesAndRates(latestSummaryRaw: SnapshotSummarySlice | 
         if (r.계좌) prevUnitPriceMap.set(`${r.계좌}_${r.종목코드}`, unitPrice)
         if (!prevUnitPriceMap.has(r.종목코드)) prevUnitPriceMap.set(r.종목코드, unitPrice)
       }
-    } else if (isOvsMarket && r.계좌 && r.종목명) {
-      const cp = commProfitByKey.get(`${r.계좌}_${r.종목명}`)
-      let nativeEval = cp?.평가금액 || 0
-      const nativeBook = cp?.장부금액 || 0
+    } else if (isOvsMarket && !prevUnitPriceMap.has(r.종목코드)) {
       const rate = r.통화 === '달러' ? derivedExchangeRates.USD : derivedExchangeRates.JPY
-
-      // 만약 직전 스냅샷에 원화 환산 금액이 잘못 들어있었다면 환율로 나누어 외화 원단위로 복원
-      if (nativeEval > 0 && nativeBook > 0 && nativeEval / nativeBook > 100) {
-        nativeEval = nativeEval / rate
-      } else if (nativeEval <= 0 && r.평가금액 > 0) {
-        nativeEval = r.평가금액 / rate
-      }
-
-      const unitPrice = nativeEval / r.보유수량
+      const unitPrice = r.평가금액 / rate / r.보유수량
       if (unitPrice > 0) {
         prevUnitPriceMap.set(`${r.계좌}_${r.종목코드}`, unitPrice)
         prevUnitPriceMap.set(r.종목코드, unitPrice)
@@ -169,12 +173,10 @@ export async function runPortfolioValuation(): Promise<{
   const currentYear = new Date().getFullYear()
   const oneAndHalfYearsAgo = format(subMonths(new Date(), 18), 'yyyy-MM-dd')
 
-  // 1. [DB & Network 병렬화] 독립적인 마스터 데이터, 거래내역, 과거 기준일, 외부 환율/금시세/해외잔고 동시 로드
+  // 1. [DB & Network 병렬화] 통합 마스터, 거래내역, 과거 기준일, 외부 환율/금시세/해외잔고 동시 로드
   const [
     { data: assetsRaw, error: assetsErr },
-    { data: pensionRaw, error: pensionErr },
     { data: assetsDailyRaw, error: assetsDailyErr },
-    { data: pensionDailyRaw, error: pensionDailyErr },
     { data: groupsRaw, error: groupsErr },
     { data: evalProfitRows, error: evalProfitErr },
     latestSummaryRes,
@@ -184,15 +186,13 @@ export async function runPortfolioValuation(): Promise<{
     gpRes,
     kbInitRes,
   ] = await Promise.all([
-    fetchAll(supabase, 'assets', '행번호'),
-    fetchAll(supabase, 'pension', '행번호'),
-    fetchAll(supabase, 'assets_daily', '행번호'),
-    fetchAll(supabase, 'pension_daily', '행번호'),
-    fetchAll(supabase, 'groups'),
-    fetchAll(supabase, 'eval_profit'),
-    supabase.from('latest_portfolio_summary').select('t_comm, t_comm2, comm_profit').eq('id', 'latest').maybeSingle(),
-    supabase.from('return').select('기준일').eq('자산군', '<합계>').gte('기준일', oneAndHalfYearsAgo).order('기준일', { ascending: true }),
-    supabase.from('return').select('기준일, 자산군, 평가금액, 총손익').eq('자산군', '<합계>').lt('기준일', `${currentYear}-01-01`).order('기준일', { ascending: true }),
+    fetchAll(supabase, TABLES.assets, '행번호'),
+    fetchAll(supabase, TABLES.assets_daily, '행번호'),
+    fetchAll(supabase, TABLES.groups),
+    fetchAll(supabase, TABLES.eval_profit),
+    supabase.from(TABLES.latest_portfolio_summary).select('t_comm, t_comm2, comm_profit, t_ovs_comm').eq('id', 'latest').maybeSingle(),
+    supabase.from(TABLES.return).select('기준일').eq('자산군', '<합계>').gte('기준일', oneAndHalfYearsAgo).order('기준일', { ascending: true }),
+    supabase.from(TABLES.return).select('기준일, 자산군, 평가금액, 총손익').eq('자산군', '<합계>').lt('기준일', `${currentYear}-01-01`).order('기준일', { ascending: true }),
     MarketDataService.getExchangeRates().catch(() => ({ USD: 1400, JPY: 9.3 })),
     MarketDataService.getGoldPrice().catch(() => null),
     KISService.create('boolio').then(async (kb) => {
@@ -203,9 +203,9 @@ export async function runPortfolioValuation(): Promise<{
   ])
 
   // Fail-fast 방어 로직: DB 접근 실패 시 스냅샷 빈 데이터 덮어쓰기 방지
-  if (assetsErr || pensionErr || assetsDailyErr || pensionDailyErr || groupsErr || evalProfitErr) {
+  if (assetsErr || assetsDailyErr || groupsErr || evalProfitErr) {
     console.error('[PortfolioRunner] DB Fetch Error:', {
-      assetsErr, pensionErr, assetsDailyErr, pensionDailyErr, groupsErr, evalProfitErr
+      assetsErr, assetsDailyErr, groupsErr, evalProfitErr
     })
     return {
       success: false,
@@ -216,13 +216,11 @@ export async function runPortfolioValuation(): Promise<{
   }
 
   const assets = (assetsRaw || []) as AssetMaster[]
-  const pension = (pensionRaw || []) as AssetMaster[]
   const assetsDaily = (assetsDailyRaw || []) as DailyTradeRaw[]
-  const pensionDaily = (pensionDailyRaw || []) as DailyTradeRaw[]
   const groups = (groupsRaw || []) as Array<{ 자산군: string; 세부자산군: string; 세부자산군2: string }>
 
-  if (assets.length === 0 && pension.length === 0) {
-    console.warn('[PortfolioRunner] Assets and Pension data are entirely empty. Aborting to prevent overriding snapshot with zeroes.')
+  if (assets.length === 0) {
+    console.warn('[PortfolioRunner] Assets data is entirely empty. Aborting to prevent overriding snapshot with zeroes.')
     return {
       success: false,
       today: todayStr,
@@ -231,16 +229,12 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 2. 일별 거래 집계 & 장부금액/평잔 계산 (Map 기반 O(1) 인덱싱 적용으로 초고속 계산)
+  // 2. 통합 일별 거래 집계 & 장부금액/평잔 계산
   const dailyAssets = getDailyTrading(assets, assetsDaily)
-  const bsAssets = getBalanceSheet('assets', dailyAssets, assets)
-
-  const dailyPension = getDailyTrading(pension, pensionDaily)
-  const bsPension = getBalanceSheet('pension', dailyPension, pension)
+  const bsAssets = getBalanceSheet(dailyAssets, assets)
 
   // 오늘 날짜 잔액 레코드 필터
-  const todayBsAssets = bsAssets.filter((r) => r.거래일자 === todayStr)
-  const todayBsPension = bsPension.filter((r) => r.거래일자 === todayStr)
+  const todayBs = bsAssets.filter((r) => r.거래일자 === todayStr)
 
   // 3. 외부 환율, 금 시세, KIS 해외주식 잔고 바인딩
   const exchangeRates = exRes || { USD: 1400, JPY: 9.3 }
@@ -248,10 +242,9 @@ export async function runPortfolioValuation(): Promise<{
   const kisBoolioService: KISService | null = kbInitRes?.service || null
   const ovsBalances: Array<{ 종목코드: string; 평가금액: number }> = kbInitRes?.ovsBalances || []
 
-  // 4. 보유수량 > 0 및 장부금액 >= 1인 실보유 종목만 엄격히 추출 (금현물, 불리오 해외주식, 고정평가 대상 제외)
-  const allMasters = [...assets, ...pension]
+  // 4. 보유수량 > 0 및 장부금액 >= 1인 실보유 종목 추출
   const masterMap = new Map<string, AssetMaster>()
-  for (const m of allMasters) {
+  for (const m of assets) {
     const key = `${m.계좌}_${m.종목코드}`
     const existing = masterMap.get(key)
     if (existing && (existing.평가금액 || 0) > 0 && (!m.평가금액 || m.평가금액 === 0)) {
@@ -264,7 +257,7 @@ export async function runPortfolioValuation(): Promise<{
   const ovsTickerSet = new Set(ovsBalances.map((o) => o.종목코드))
   const goldTicker = goldPrice?.종목코드
 
-  const activeHoldings = [...todayBsAssets, ...todayBsPension].filter((r) => {
+  const activeHoldings = todayBs.filter((r) => {
     if (r.보유수량 <= 0 || (r.장부금액 !== undefined && r.장부금액 < 1)) return false
     if (goldTicker && r.종목코드 === goldTicker) return false
     if (r.계좌 === '불리오' && ovsTickerSet.has(r.종목코드)) return false
@@ -309,7 +302,7 @@ export async function runPortfolioValuation(): Promise<{
     )
   )
 
-  // 6. [시세 조회 병렬 실행]: 펀드 크롤링, KIS 복수종목 시세(30개 단위 일괄배치), 5개 영업일 return 조회를 동시 발주
+  // 6. [시세 조회 병렬 실행]: 펀드 크롤링, KIS 복수종목 시세, 5개 영업일 return 조회를 동시 발주
   const [fundPrices, multiPricesMap, variationRes] = await Promise.all([
     fundCodes.length > 0 ? MarketDataService.getFundPrices(fundCodes).catch(() => []) : Promise.resolve([]),
     kisBoolioService && stockCodes.length > 0
@@ -317,7 +310,7 @@ export async function runPortfolioValuation(): Promise<{
       : Promise.resolve(new Map<string, number>()),
     exact5Dates.length > 0
       ? supabase
-          .from('return')
+          .from(TABLES.return)
           .select('기준일, 자산군, 세부자산군, 세부자산군2, 평가금액, 총손익, 총수익률')
           .in('기준일', exact5Dates)
       : Promise.resolve({ data: [] as ReturnVariationRow[] }),
@@ -338,7 +331,7 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 7. [단건 정밀 재시도]: 복수 시세 응답에서 누락되었거나 비양수(<= 0 또는 NaN)인 종목만 개별 getCurrentPrice 조회
+  // 7. [단건 정밀 재시도]: 복수 시세 응답에서 누락되었거나 비양수인 종목 개별 조회
   const missingStockCodes = stockCodes.filter((c) => !closingPricesMap.has(c) || (closingPricesMap.get(c) || 0) <= 0)
   if (missingStockCodes.length > 0 && kisBoolioService) {
     console.warn(`[PortfolioRunner] ${missingStockCodes.length} stock tickers missing or invalid from multi-price response. Querying individually:`, missingStockCodes)
@@ -351,7 +344,6 @@ export async function runPortfolioValuation(): Promise<{
       } catch (err) {
         console.warn(`[PortfolioRunner] Single price query error for ${ticker}:`, err)
       }
-      // 안전 딜레이 유지
       await new Promise((resolve) => setTimeout(resolve, 80))
     }
   }
@@ -373,10 +365,9 @@ export async function runPortfolioValuation(): Promise<{
     }
   }
 
-  // 9. 시세 반영 평가 (폴백 맵을 함께 전달하여 0원/장부금액 왜곡 완전 차단)
-  const evaluatedAssets = evaluateBalanceSheet(
-    'assets',
-    todayBsAssets,
+  // 9. 시세 반영 평가 (원화환산 통합 평가)
+  const evaluatedRecords = evaluateBalanceSheet(
+    todayBs,
     assets,
     closingPricesMap,
     exchangeRates,
@@ -384,23 +375,13 @@ export async function runPortfolioValuation(): Promise<{
     prevUnitPriceMap
   )
 
-  const evaluatedPension = evaluateBalanceSheet(
-    'pension',
-    todayBsPension,
-    pension,
-    closingPricesMap,
-    exchangeRates,
-    [],
-    prevUnitPriceMap
-  )
-
   // 10. 상품별 보유현황, 자산배분 피벗, 자산군/계좌별 손익, 상세 상품별 손익 계산
-  const { tComm, tComm2, tComm10, holdingsSnapshots } =
-    computeCommodityHoldings(evaluatedAssets, evaluatedPension, exchangeRates)
+  const { tComm, tComm2, tComm10, tOvsComm, holdingsSnapshots } =
+    computeCommodityHoldings(evaluatedRecords, exchangeRates)
 
   const accountAllocation = computeAccountAllocation(tComm2, groups)
-  const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedAssets, evaluatedPension)
-  const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedAssets, evaluatedPension)
+  const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedRecords)
+  const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedRecords)
 
   // 11. DB 스냅샷 갱신 (holdings, asset_ratio, return 병렬 저장)
   const returnSnapshots = tComm3.map((r) => ({
@@ -416,13 +397,13 @@ export async function runPortfolioValuation(): Promise<{
   try {
     await Promise.all([
       holdingsSnapshots.length > 0
-        ? supabase.from('holdings').upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
+        ? supabase.from(TABLES.holdings).upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
         : Promise.resolve({ error: null }),
       assetRatioSnapshots.length > 0
-        ? supabase.from('asset_ratio').upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
+        ? supabase.from(TABLES.asset_ratio).upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
         : Promise.resolve({ error: null }),
-      supabase.from('return').delete().eq('기준일', todayStr).then(() => {
-        return supabase.from('return').insert(returnSnapshots)
+      supabase.from(TABLES.return).delete().eq('기준일', todayStr).then(() => {
+        return supabase.from(TABLES.return).insert(returnSnapshots)
       }),
     ])
   } catch (err) {
@@ -448,10 +429,10 @@ export async function runPortfolioValuation(): Promise<{
     ...pastYearEndList,
   ]
 
-  // 연도별 장부금액 및 평잔 요약
+  // 연도별 장부금액 및 평잔 요약 (원화 환산된 전체 통합 자산 기준)
   const yearBookMap = new Map<number, { 장부금액: number; 평잔: number; 실현손익: number }>()
-  const combinedYearTrades = [...bsAssets, ...bsPension].filter(
-    (r) => (r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr) && r.통화 === '원화'
+  const combinedYearTrades = bsAssets.filter(
+    (r) => r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr
   )
   for (const r of combinedYearTrades) {
     const y = Number(r.거래일자.substring(0, 4))
@@ -499,20 +480,21 @@ export async function runPortfolioValuation(): Promise<{
     t_comm3: tComm3,
     t_comm4: tComm4,
     t_comm10: tComm10,
+    t_ovs_comm: tOvsComm,
     comm_profit: commProfit,
     comm_profit2: commProfit2,
   }
 
   try {
     const { error: snapErr } = await supabase
-      .from('latest_portfolio_summary')
+      .from(TABLES.latest_portfolio_summary)
       .upsert(summary, { onConflict: 'id' })
 
     if (snapErr) {
-      console.warn('latest_portfolio_summary upsert error:', snapErr)
+      console.warn(`${TABLES.latest_portfolio_summary} upsert error:`, snapErr)
     }
   } catch (err) {
-    console.warn('latest_portfolio_summary upsert exception:', err)
+    console.warn(`${TABLES.latest_portfolio_summary} upsert exception:`, err)
   }
 
   return {
@@ -540,47 +522,37 @@ export async function fastRecalculatePortfolio(): Promise<{
 
   const [
     { data: assetsRaw },
-    { data: pensionRaw },
     { data: assetsDailyRaw },
-    { data: pensionDailyRaw },
     { data: groupsRaw },
     { data: evalProfitRows },
     latestSummaryRes,
     dateRowsRes,
     pastYearEndRes,
   ] = await Promise.all([
-    fetchAll(supabase, 'assets', '행번호'),
-    fetchAll(supabase, 'pension', '행번호'),
-    fetchAll(supabase, 'assets_daily', '행번호'),
-    fetchAll(supabase, 'pension_daily', '행번호'),
-    fetchAll(supabase, 'groups'),
-    fetchAll(supabase, 'eval_profit'),
-    supabase.from('latest_portfolio_summary').select('t_comm, t_comm2, comm_profit').eq('id', 'latest').maybeSingle(),
-    supabase.from('return').select('기준일').eq('자산군', '<합계>').gte('기준일', oneAndHalfYearsAgo).order('기준일', { ascending: true }),
-    supabase.from('return').select('기준일, 자산군, 평가금액, 총손익').eq('자산군', '<합계>').lt('기준일', `${currentYear}-01-01`).order('기준일', { ascending: true }),
+    fetchAll(supabase, TABLES.assets, '행번호'),
+    fetchAll(supabase, TABLES.assets_daily, '행번호'),
+    fetchAll(supabase, TABLES.groups),
+    fetchAll(supabase, TABLES.eval_profit),
+    supabase.from(TABLES.latest_portfolio_summary).select('t_comm, t_comm2, comm_profit, t_ovs_comm').eq('id', 'latest').maybeSingle(),
+    supabase.from(TABLES.return).select('기준일').eq('자산군', '<합계>').gte('기준일', oneAndHalfYearsAgo).order('기준일', { ascending: true }),
+    supabase.from(TABLES.return).select('기준일, 자산군, 평가금액, 총손익').eq('자산군', '<합계>').lt('기준일', `${currentYear}-01-01`).order('기준일', { ascending: true }),
   ])
 
   const assets = (assetsRaw || []) as AssetMaster[]
-  const pension = (pensionRaw || []) as AssetMaster[]
   const assetsDaily = (assetsDailyRaw || []) as DailyTradeRaw[]
-  const pensionDaily = (pensionDailyRaw || []) as DailyTradeRaw[]
   const groups = (groupsRaw || []) as Array<{ 자산군: string; 세부자산군: string; 세부자산군2: string }>
 
   const dailyAssets = getDailyTrading(assets, assetsDaily)
-  const bsAssets = getBalanceSheet('assets', dailyAssets, assets)
-  const dailyPension = getDailyTrading(pension, pensionDaily)
-  const bsPension = getBalanceSheet('pension', dailyPension, pension)
+  const bsAssets = getBalanceSheet(dailyAssets, assets)
 
-  const todayBsAssets = bsAssets.filter((r) => r.거래일자 === todayStr)
-  const todayBsPension = bsPension.filter((r) => r.거래일자 === todayStr)
+  const todayBs = bsAssets.filter((r) => r.거래일자 === todayStr)
 
   const latestSummaryRaw = latestSummaryRes?.data as SnapshotSummarySlice | null
   const { prevUnitPriceMap, derivedExchangeRates: exchangeRates } = extractSnapshotPricesAndRates(latestSummaryRaw)
   const closingPricesMap = new Map<string, number>()
 
-  const evaluatedAssets = evaluateBalanceSheet(
-    'assets',
-    todayBsAssets,
+  const evaluatedRecords = evaluateBalanceSheet(
+    todayBs,
     assets,
     closingPricesMap,
     exchangeRates,
@@ -588,21 +560,11 @@ export async function fastRecalculatePortfolio(): Promise<{
     prevUnitPriceMap
   )
 
-  const evaluatedPension = evaluateBalanceSheet(
-    'pension',
-    todayBsPension,
-    pension,
-    closingPricesMap,
-    exchangeRates,
-    [],
-    prevUnitPriceMap
-  )
-
-  const { tComm, tComm2, tComm10, holdingsSnapshots } =
-    computeCommodityHoldings(evaluatedAssets, evaluatedPension, exchangeRates)
+  const { tComm, tComm2, tComm10, tOvsComm, holdingsSnapshots } =
+    computeCommodityHoldings(evaluatedRecords, exchangeRates)
   const accountAllocation = computeAccountAllocation(tComm2, groups)
-  const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedAssets, evaluatedPension)
-  const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedAssets, evaluatedPension)
+  const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedRecords)
+  const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedRecords)
 
   const returnSnapshots = tComm3.map((r) => ({
     기준일: todayStr,
@@ -648,18 +610,18 @@ export async function fastRecalculatePortfolio(): Promise<{
   const [variationRes] = await Promise.all([
     exact5Dates.length > 0
       ? supabase
-          .from('return')
+          .from(TABLES.return)
           .select('기준일, 자산군, 세부자산군, 세부자산군2, 평가금액, 총손익, 총수익률')
           .in('기준일', exact5Dates)
       : Promise.resolve({ data: [] as ReturnVariationRow[] }),
     holdingsSnapshots.length > 0
-      ? supabase.from('holdings').upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
+      ? supabase.from(TABLES.holdings).upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
       : Promise.resolve({ error: null }),
     assetRatioSnapshots.length > 0
-      ? supabase.from('asset_ratio').upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
+      ? supabase.from(TABLES.asset_ratio).upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
       : Promise.resolve({ error: null }),
-    supabase.from('return').delete().eq('기준일', todayStr).then(() => {
-      return supabase.from('return').insert(returnSnapshots)
+    supabase.from(TABLES.return).delete().eq('기준일', todayStr).then(() => {
+      return supabase.from(TABLES.return).insert(returnSnapshots)
     }),
   ])
 
@@ -682,8 +644,8 @@ export async function fastRecalculatePortfolio(): Promise<{
   ]
 
   const yearBookMap = new Map<number, { 장부금액: number; 평잔: number; 실현손익: number }>()
-  const combinedYearTrades = [...bsAssets, ...bsPension].filter(
-    (r) => (r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr) && r.통화 === '원화'
+  const combinedYearTrades = bsAssets.filter(
+    (r) => r.거래일자.endsWith('-12-31') || r.거래일자 === todayStr
   )
   for (const r of combinedYearTrades) {
     const y = Number(r.거래일자.substring(0, 4))
@@ -730,14 +692,15 @@ export async function fastRecalculatePortfolio(): Promise<{
     t_comm3: tComm3,
     t_comm4: tComm4,
     t_comm10: tComm10,
+    t_ovs_comm: tOvsComm,
     comm_profit: commProfit,
     comm_profit2: commProfit2,
   }
 
   try {
-    await supabase.from('latest_portfolio_summary').upsert(summary, { onConflict: 'id' })
+    await supabase.from(TABLES.latest_portfolio_summary).upsert(summary, { onConflict: 'id' })
   } catch (err) {
-    console.warn('fastRecalculatePortfolio upsert error:', err)
+    console.warn(`${TABLES.latest_portfolio_summary} fastRecalculatePortfolio upsert error:`, err)
   }
 
   return {

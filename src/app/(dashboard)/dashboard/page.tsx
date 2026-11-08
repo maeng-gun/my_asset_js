@@ -185,7 +185,7 @@ export default function DashboardPage() {
   }
 
   // 데이터 가공: 유동성 현황
-  const liquidityTrends = analyticsData?.evalTrend || []
+  const liquidityTrends = analyticsData?.evalTrend || (analyticsData as any)?.data?.evalTrend || []
   const latestLiquidity = liquidityTrends.find((d: any) => d.기준일 === todayStr) 
     || liquidityTrends.filter((d: any) => d.기준일 <= todayStr).pop() 
     || { 투자가능자산: 0, 현금화가능자산: 0, 인출가능현금: 0 }

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       const bms = searchParams.get('benchmarks')?.split(',') || ['SPY', 'AOR']
       data = await buildPortfolioBenchmark(bms, startDate, endDate)
     } else {
-      const classes = searchParams.get('classes')?.split(',') || ['주식', '채권', '대체자산', '현금성', '외화자산']
+      const classes = searchParams.get('classes')?.split(',') || ['주식', '채권', '대체자산', '현금성']
       data = await buildAssetPerformanceData(classes, startDate, endDate)
     }
 
