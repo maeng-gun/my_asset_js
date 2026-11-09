@@ -173,7 +173,8 @@ def get_resource_path(relative_path):
 
 # --- 메인 애플리케이션 클래스 ---
 class MyAssetDesktopApp:
-    def __init__(self, is_dev=False, port=3000, silent=False):
+    def __init__(self, is_dev=False, port=3000, silent=False, debug=False):
+        self.debug = debug
         self.is_dev = is_dev
         self.port = port
         self.silent = silent
@@ -455,6 +456,7 @@ if __name__ == "__main__":
     try:
         parser = argparse.ArgumentParser(description="My Asset 시스템 트레이 상주형 데스크톱 래퍼")
         parser.add_argument("--dev", action="store_true", help="Next.js 개발 모드로 구동")
+        parser.add_argument("--debug", action="store_true", help="WebView2 DevTools 개발자 도구 활성화")
         parser.add_argument("--port", type=int, default=3000, help="구동 포트 (기본값: 3000)")
         parser.add_argument("--silent", "--tray", dest="silent", action="store_true", help="초기 구동 시 창을 띄우지 않고 시스템 트레이에만 상주")
         parser.add_argument("--register-startup", action="store_true", help="Windows 부팅 시 자동 시작 등록")
@@ -477,7 +479,7 @@ if __name__ == "__main__":
         if not check_single_instance():
             sys.exit(0)
 
-        app = MyAssetDesktopApp(is_dev=args.dev, port=args.port, silent=args.silent)
+        app = MyAssetDesktopApp(is_dev=args.dev, port=args.port, silent=args.silent, debug=args.debug)
         app.run()
     except Exception as e:
         import traceback
