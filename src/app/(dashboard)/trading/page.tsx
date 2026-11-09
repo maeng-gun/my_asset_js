@@ -144,6 +144,34 @@ export default function TradingPage() {
     },
   })
 
+  // 계좌 변경 핸들러: 해당 계좌의 통화 목록과 즉시 동기화 및 폼 입력 상태 초기화
+  const handleAccountChange = (newAccount: string) => {
+    const accCurrencies = tickersData
+      ? Array.from(new Set(tickersData.filter((t: any) => t.계좌 === newAccount && t.통화).map((t: any) => t.통화)))
+      : ['원화']
+    accCurrencies.sort((a: string, b: string) => (a === '원화' ? -1 : b === '원화' ? 1 : a.localeCompare(b)))
+
+    const newCurrency = accCurrencies.includes(currency) ? currency : (accCurrencies[0] || '원화')
+
+    setTradingForm({
+      account: newAccount,
+      currency: newCurrency,
+      selectedTicker: '',
+      selectedRowId: null,
+      buyQ: 0,
+      buyAmt: 0,
+      buyCash: 0,
+      sellQ: 0,
+      sellPrincipal: 0,
+      sellAmt: 0,
+      dividend: 0,
+      cashIn: 0,
+      inOut: 0,
+      fxRate: newCurrency === '원화' ? 1 : '',
+      autoLinkWonCash: false,
+    })
+  }
+
   // 동적 계좌 목록 계산 (모든 계좌 포함)
   const availableAccounts = useMemo(() => {
     if (!categories) return []
@@ -158,28 +186,33 @@ export default function TradingPage() {
     })
   }, [categories])
 
-  // 계좌 목록 변경 시 첫 번째 항목 자동 선택
+  // 계좌 목록 로드 시 현재 계좌가 유효하지 않으면 첫 번째 항목 자동 선택
   useEffect(() => {
     if (availableAccounts.length > 0 && !availableAccounts.includes(account) && !selectedRowId) {
-      setAccount(availableAccounts[0])
+      handleAccountChange(availableAccounts[0])
     }
   }, [availableAccounts, account, selectedRowId])
 
-  // 동적 통화 목록 계산
+  // 동적 통화 목록 계산 ('원화' 우선 정렬)
   const availableCurrencies = useMemo(() => {
     if (!tickersData) return []
     const currencies = tickersData
       .filter((t: any) => t.계좌 === account && t.통화)
       .map((t: any) => t.통화)
-    return Array.from(new Set(currencies))
+    const unique = Array.from(new Set(currencies))
+    return unique.sort((a: string, b: string) => {
+      if (a === '원화') return -1
+      if (b === '원화') return 1
+      return a.localeCompare(b)
+    })
   }, [tickersData, account])
 
-  // 통화 목록 변경 시 첫 번째 항목 자동 선택
+  // 통화 목록 변경 시 현재 통화가 유효하지 않으면 첫 번째 통화(원화 우선)로 자동 동기화
   useEffect(() => {
-    if (availableCurrencies.length > 0 && !availableCurrencies.includes(currency) && !selectedRowId) {
+    if (availableCurrencies.length > 0 && !availableCurrencies.includes(currency)) {
       setCurrency(availableCurrencies[0])
     }
-  }, [availableCurrencies, currency, selectedRowId])
+  }, [availableCurrencies, currency])
 
   // 5. 종합거래내역 API 쿼리
   const { data: totalTradesData } = useQuery({
@@ -388,7 +421,7 @@ export default function TradingPage() {
                   <label className="text-xs text-slate-400 font-medium block mb-1">계좌</label>
                   <select
                     value={account}
-                    onChange={(e) => setAccount(e.target.value)}
+                    onChange={(e) => handleAccountChange(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
                   >
                     {availableAccounts.length > 0 ? (
@@ -404,7 +437,11 @@ export default function TradingPage() {
                   <label className="text-xs text-slate-400 font-medium block mb-1">통화</label>
                   <select
                     value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setCurrency(val)
+                      setFxRate(val === '원화' ? 1 : '')
+                    }}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100"
                   >
                     {availableCurrencies.length > 0 ? (

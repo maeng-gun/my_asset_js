@@ -81,7 +81,15 @@ export async function getTradeHistory(type: '투자자산' | '연금자산', acc
   })
   
   if (currency && currency !== '전체') {
-    filtered = filtered.filter((d) => d['통화'] === currency)
+    const hasCur = filtered.some((d) => d['통화'] === currency)
+    if (hasCur) {
+      filtered = filtered.filter((d) => d['통화'] === currency)
+    } else {
+      const hasWon = filtered.some((d) => d['통화'] === '원화')
+      if (hasWon) {
+        filtered = filtered.filter((d) => d['통화'] === '원화')
+      }
+    }
   }
   
   // Sort ascending by date and row number to calculate cumsum
