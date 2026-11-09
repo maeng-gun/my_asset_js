@@ -392,16 +392,22 @@ export function getBalanceSheet(
     let countY = 0
     let sumCashY = 0
 
-    // 일자별 순회
+    // 일자별 순회 (당일 외화 순유출입 Netting 적용 후 일자별 반영하여 일중 순서에 의한 음수 왜곡 방지)
     for (const d of allDates) {
       const dayTrades = acctFxTrades.filter((t) => t.거래일자 === d)
 
+      let netFxFlow = 0
+      let activeRate = lastKnownRates[fc.통화] || 1
+
       for (const t of dayTrades) {
-        const netFxFlow = (t.현금수입 || 0) + (t.입출금 || 0) - (t.현금지출 || 0)
-        if (netFxFlow === 0) continue
+        const flow = (t.현금수입 || 0) + (t.입출금 || 0) - (t.현금지출 || 0)
+        netFxFlow += flow
+        if (t.환율 && t.환율 > 0) {
+          activeRate = t.환율
+        }
+      }
 
-        const activeRate = t.환율 && t.환율 > 0 ? t.환율 : lastKnownRates[fc.통화] || 1
-
+      if (netFxFlow !== 0) {
         if (netFxFlow > 0) {
           // 외화 유입: 당일 환율로 외화예수금 자동 매입
           const wonIn = convertToKRW(netFxFlow, fc.통화, activeRate)

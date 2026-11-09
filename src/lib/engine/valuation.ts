@@ -171,16 +171,19 @@ export function evaluateBalanceSheet(
       const foreignBook = r.외화장부금액 || 0
       foreignEvalAmt = foreignBook
 
-      if (ovsEvalAmt > 0) {
-        foreignEvalAmt = ovsEvalAmt
-      } else if (masterEvalAmt > 0) {
-        foreignEvalAmt = masterEvalAmt
-      } else if (isMarketPriced && closingPrice !== undefined && closingPrice !== null && !isNaN(closingPrice) && closingPrice > 0) {
-        foreignEvalAmt = closingPrice * r.보유수량
-      } else if (isMarketPriced && r.보유수량 === 0) {
-        foreignEvalAmt = 0
-      } else if (isMarketPriced && r.보유수량 > 0 && prevPrice !== undefined && prevPrice > 0) {
-        foreignEvalAmt = prevPrice * r.보유수량
+      // 현금성(외화예수금)은 시세 평가나 외부 잔고 덮어쓰기 없이 거래내역 기반 외화장부금액이 곧 외화평가금액
+      if (r.자산군 !== '현금성') {
+        if (ovsEvalAmt > 0) {
+          foreignEvalAmt = ovsEvalAmt
+        } else if (masterEvalAmt > 0) {
+          foreignEvalAmt = masterEvalAmt
+        } else if (isMarketPriced && closingPrice !== undefined && closingPrice !== null && !isNaN(closingPrice) && closingPrice > 0) {
+          foreignEvalAmt = closingPrice * r.보유수량
+        } else if (isMarketPriced && r.보유수량 === 0) {
+          foreignEvalAmt = 0
+        } else if (isMarketPriced && r.보유수량 > 0 && prevPrice !== undefined && prevPrice > 0) {
+          foreignEvalAmt = prevPrice * r.보유수량
+        }
       }
 
       // 외화평가금액 -> 원화 환산

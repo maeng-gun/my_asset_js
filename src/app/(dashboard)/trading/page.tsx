@@ -709,19 +709,32 @@ export default function TradingPage() {
                             '1'
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매입수량)}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-400 font-medium">{formatKRW(r.매입액)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.현금지출)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매도수량)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.매도원금)}</td>
-                        <td className="py-2.5 px-3 text-right text-rose-400 font-medium">{formatKRW(r.매도액)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.현금수입)}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-300">{formatKRW(r.매매수익)}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-300">{formatKRW(r.이자배당액)}</td>
-                        <td className="py-2.5 px-3 text-right text-rose-300">{formatKRW((r.매입비용 || 0) + (r.매도비용 || 0))}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-emerald-500">{formatKRW(r.순수익)}</td>
-                        <td className="py-2.5 px-3 text-right">{formatKRW(r.입출금)}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-slate-200">{formatKRW(r.잔액)}</td>
+                        {(() => {
+                          const isUsd = r.통화 === '달러' || currency === '달러'
+                          const fmtAmt = (val: number | null | undefined) => {
+                            if (val === null || val === undefined || isNaN(val)) return '0'
+                            return isUsd
+                              ? Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : Math.round(val).toLocaleString('ko-KR')
+                          }
+                          return (
+                            <>
+                              <td className="py-2.5 px-3 text-right">{formatKRW(r.매입수량)}</td>
+                              <td className="py-2.5 px-3 text-right text-emerald-400 font-medium">{fmtAmt(r.매입액)}</td>
+                              <td className="py-2.5 px-3 text-right">{fmtAmt(r.현금지출)}</td>
+                              <td className="py-2.5 px-3 text-right">{formatKRW(r.매도수량)}</td>
+                              <td className="py-2.5 px-3 text-right">{fmtAmt(r.매도원금)}</td>
+                              <td className="py-2.5 px-3 text-right text-rose-400 font-medium">{fmtAmt(r.매도액)}</td>
+                              <td className="py-2.5 px-3 text-right">{fmtAmt(r.현금수입)}</td>
+                              <td className="py-2.5 px-3 text-right text-emerald-300">{fmtAmt(r.매매수익)}</td>
+                              <td className="py-2.5 px-3 text-right text-emerald-300">{fmtAmt(r.이자배당액)}</td>
+                              <td className="py-2.5 px-3 text-right text-rose-300">{fmtAmt((r.매입비용 || 0) + (r.매도비용 || 0))}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-emerald-500">{fmtAmt(r.순수익)}</td>
+                              <td className="py-2.5 px-3 text-right">{fmtAmt(r.입출금)}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-slate-200">{fmtAmt(r.잔액)}</td>
+                            </>
+                          )
+                        })()}
                       </tr>
                     )
                   })}
