@@ -397,10 +397,10 @@ export async function runPortfolioValuation(): Promise<{
   try {
     await Promise.all([
       holdingsSnapshots.length > 0
-        ? supabase.from(TABLES.holdings).upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
+        ? supabase.from(TABLES.holdings).delete().neq('상품명', 'NON_EXISTENT_NAME_XYZ').then(() => supabase.from(TABLES.holdings).insert(holdingsSnapshots))
         : Promise.resolve({ error: null }),
       assetRatioSnapshots.length > 0
-        ? supabase.from(TABLES.asset_ratio).upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
+        ? supabase.from(TABLES.asset_ratio).delete().neq('자산군', 'NON_EXISTENT_NAME_XYZ').then(() => supabase.from(TABLES.asset_ratio).insert(assetRatioSnapshots))
         : Promise.resolve({ error: null }),
       supabase.from(TABLES.return).delete().eq('기준일', todayStr).then(() => {
         return supabase.from(TABLES.return).insert(returnSnapshots)
@@ -615,10 +615,10 @@ export async function fastRecalculatePortfolio(): Promise<{
           .in('기준일', exact5Dates)
       : Promise.resolve({ data: [] as ReturnVariationRow[] }),
     holdingsSnapshots.length > 0
-      ? supabase.from(TABLES.holdings).upsert(holdingsSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2, 상품명' })
+      ? supabase.from(TABLES.holdings).delete().neq('상품명', 'NON_EXISTENT_NAME_XYZ').then(() => supabase.from(TABLES.holdings).insert(holdingsSnapshots))
       : Promise.resolve({ error: null }),
     assetRatioSnapshots.length > 0
-      ? supabase.from(TABLES.asset_ratio).upsert(assetRatioSnapshots, { onConflict: '자산군, 세부자산군, 세부자산군2' })
+      ? supabase.from(TABLES.asset_ratio).delete().neq('자산군', 'NON_EXISTENT_NAME_XYZ').then(() => supabase.from(TABLES.asset_ratio).insert(assetRatioSnapshots))
       : Promise.resolve({ error: null }),
     supabase.from(TABLES.return).delete().eq('기준일', todayStr).then(() => {
       return supabase.from(TABLES.return).insert(returnSnapshots)

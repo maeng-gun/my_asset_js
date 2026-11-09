@@ -203,10 +203,25 @@ class MyAssetDesktopApp:
         # 0.0.0.0 바인딩으로 127.0.0.1 및 localhost 모두 수신 허용
         cmd = ["npx.cmd", "next", "dev", "-H", "0.0.0.0", "-p", str(self.port)] if self.is_dev else ["npx.cmd", "next", "start", "-H", "0.0.0.0", "-p", str(self.port)]
         
-        # 프로덕션 모드인데 .next 폴더가 없으면 자동 빌드 유도
-        if not self.is_dev and not os.path.exists(os.path.join(self.app_dir, ".next")):
-            print("[Info] 프로덕션 빌드(.next)가 없습니다. 최초 1회 빌드를 시작합니다...")
-            subprocess.run(["npm.cmd", "run", "build"], cwd=self.app_dir, check=True)
+        # 프로덕션 모드인데 .next 폴더가 없거나 소스코드(src)가 빌드보다 최신이면 자동 빌드
+        if not self.is_dev:
+            build_id_path = os.path.join(self.app_dir, ".next", "BUILD_ID")
+            needs_build = not os.path.exists(build_id_path)
+            if not needs_build:
+                build_time = os.path.getmtime(build_id_path)
+                src_dir = os.path.join(self.app_dir, "src")
+                if os.path.exists(src_dir):
+                    for root, _, files in os.walk(src_dir):
+                        for f in files:
+                            if os.path.getmtime(os.path.join(root, f)) > build_time:
+                                needs_build = True
+                                print(f"[Info] 소스코드({f}) 변경 감지: 최신 프로덕션 빌드를 시작합니다...")
+                                break
+                        if needs_build:
+                            break
+            if needs_build:
+                print("[Info] 프로덕션 빌드를 시작합니다...")
+                subprocess.run(["npm.cmd", "run", "build"], cwd=self.app_dir, check=True)
 
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         self.node_process = subprocess.Popen(
