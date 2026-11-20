@@ -62,3 +62,6 @@ MyAsset.exe
 # private portfolio-cio skill (Google Drive junction, contains family account/asset configs & HTML guide)
 /.agents/skills/portfolio_cio/
 
+# local secret & essential ignored files vault (Google Drive junction)
+/secret/
+
