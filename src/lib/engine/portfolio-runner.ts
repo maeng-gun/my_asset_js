@@ -377,7 +377,7 @@ export async function runPortfolioValuation(): Promise<{
 
   // 10. 상품별 보유현황, 자산배분 피벗, 자산군/계좌별 손익, 상세 상품별 손익 계산
   const { tComm, tComm2, tComm10, tOvsComm, holdingsSnapshots } =
-    computeCommodityHoldings(evaluatedRecords, exchangeRates)
+    computeCommodityHoldings(evaluatedRecords, exchangeRates, groups)
 
   const accountAllocation = computeAccountAllocation(tComm2, groups)
   const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedRecords)
@@ -561,7 +561,7 @@ export async function fastRecalculatePortfolio(): Promise<{
   )
 
   const { tComm, tComm2, tComm10, tOvsComm, holdingsSnapshots } =
-    computeCommodityHoldings(evaluatedRecords, exchangeRates)
+    computeCommodityHoldings(evaluatedRecords, exchangeRates, groups)
   const accountAllocation = computeAccountAllocation(tComm2, groups)
   const { tComm3, tComm4, assetRatioSnapshots } = computeAssetProfit(evaluatedRecords)
   const { commProfit, commProfit2 } = computeDetailedCommodityProfit(evaluatedRecords)

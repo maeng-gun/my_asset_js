@@ -193,11 +193,19 @@ export function setTradingForm(
   notify()
 }
 
-export function resetTradingForm() {
-  setTradingForm({
-    ...DEFAULT_TRADING_FORM,
-    tradeDate: format(new Date(), 'yyyy-MM-dd'),
-    selectedRowId: null,
+export function resetTradingForm(preserveContext: boolean = true) {
+  const keepContext = typeof preserveContext === 'boolean' ? preserveContext : true
+  setTradingForm((prev) => {
+    const nextCurrency = keepContext && prev.currency ? prev.currency : DEFAULT_TRADING_FORM.currency
+    return {
+      ...DEFAULT_TRADING_FORM,
+      tradeType: keepContext && prev.tradeType ? prev.tradeType : DEFAULT_TRADING_FORM.tradeType,
+      account: keepContext && prev.account ? prev.account : DEFAULT_TRADING_FORM.account,
+      currency: nextCurrency,
+      tradeDate: keepContext && prev.tradeDate ? prev.tradeDate : format(new Date(), 'yyyy-MM-dd'),
+      fxRate: keepContext ? (nextCurrency === '원화' ? 1 : '') : DEFAULT_TRADING_FORM.fxRate,
+      selectedRowId: null,
+    }
   })
 }
 

@@ -22,9 +22,9 @@ export function CardHeader({
   action,
   children,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & {
-  title?: string
-  subtitle?: string
+}: Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> & {
+  title?: React.ReactNode
+  subtitle?: React.ReactNode
   action?: React.ReactNode
 }) {
   return (

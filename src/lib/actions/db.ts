@@ -164,6 +164,14 @@ export async function getCategories() {
   return data || []
 }
 
+export async function getGroups() {
+  const supabase = createAdminClient()
+  const { data, error } = await fetchAll(supabase, TABLES.groups)
+
+  if (error) throw new Error(`[getGroups] ${error.message}`)
+  return (data || []) as Array<{ 자산군: string; 세부자산군: string; 세부자산군2: string }>
+}
+
 export async function addTrade(
   type: '투자자산' | '연금자산',
   record: Record<string, unknown>,
@@ -406,6 +414,95 @@ export async function getAlloTableRows() {
 
   if (error) throw new Error(`[getAlloTableRows] ${error.message}`)
   return data || []
+}
+
+export interface AlloStrategyInput {
+  국내주식: number
+  해외주식: number
+  만기보유채권: number
+  시장형채권: number
+  실물자산: number
+  인컴자산: number
+}
+
+export async function saveAlloStrategy(
+  strategy: 'SAA' | 'TAA',
+  ratios: AlloStrategyInput,
+  dateStr?: string
+) {
+  const supabase = createAdminClient()
+  const todayStr = dateStr || new Date().toISOString().slice(0, 10)
+
+  const sum =
+    (ratios.국내주식 || 0) +
+    (ratios.해외주식 || 0) +
+    (ratios.만기보유채권 || 0) +
+    (ratios.시장형채권 || 0) +
+    (ratios.실물자산 || 0) +
+    (ratios.인컴자산 || 0)
+
+  if (sum > 100.01) {
+    throw new Error(`자산군 비중 합계(${sum.toFixed(2)}%)가 100%를 초과할 수 없습니다.`)
+  }
+
+  const { data: existingRows } = (await supabase
+    .from(TABLES.allo_table)
+    .select('행번호')
+    .eq('배분일자', todayStr)
+    .eq('구분', strategy)
+    .limit(1)) as { data: Array<{ 행번호: number }> | null }
+
+  if (existingRows && existingRows.length > 0) {
+    const targetRow = existingRows[0]
+    const { error: updateErr } = await supabase
+      .from(TABLES.allo_table)
+      .update({
+        국내주식: Number(ratios.국내주식.toFixed(2)),
+        해외주식: Number(ratios.해외주식.toFixed(2)),
+        만기보유채권: Number(ratios.만기보유채권.toFixed(2)),
+        시장형채권: Number(ratios.시장형채권.toFixed(2)),
+        실물자산: Number(ratios.실물자산.toFixed(2)),
+        인컴자산: Number(ratios.인컴자산.toFixed(2)),
+      })
+      .eq('행번호', targetRow.행번호)
+
+    if (updateErr) throw new Error(`[saveAlloStrategy:update] ${updateErr.message}`)
+  } else {
+    const { data: maxRow } = (await supabase
+      .from(TABLES.allo_table)
+      .select('행번호')
+      .order('행번호', { ascending: false })
+      .limit(1)
+      .single()) as { data: { 행번호?: number } | null }
+
+    const nextNum = ((maxRow as { 행번호?: number } | null)?.행번호 || 0) + 1
+    const newRecord = {
+      행번호: nextNum,
+      배분일자: todayStr,
+      구분: strategy,
+      국내주식: Number(ratios.국내주식.toFixed(2)),
+      해외주식: Number(ratios.해외주식.toFixed(2)),
+      만기보유채권: Number(ratios.만기보유채권.toFixed(2)),
+      시장형채권: Number(ratios.시장형채권.toFixed(2)),
+      실물자산: Number(ratios.실물자산.toFixed(2)),
+      인컴자산: Number(ratios.인컴자산.toFixed(2)),
+    }
+
+    const { error: insertErr } = await supabase.from(TABLES.allo_table).insert(newRecord)
+    if (insertErr) throw new Error(`[saveAlloStrategy:insert] ${insertErr.message}`)
+  }
+
+  return true
+}
+
+export async function saveBothAlloStrategies(
+  saaRatios: AlloStrategyInput,
+  taaRatios: AlloStrategyInput,
+  dateStr?: string
+) {
+  await saveAlloStrategy('SAA', saaRatios, dateStr)
+  await saveAlloStrategy('TAA', taaRatios, dateStr)
+  return true
 }
 
 export async function addTicker(type: '투자자산' | '연금자산', record: Record<string, unknown>) {

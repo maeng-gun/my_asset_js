@@ -546,6 +546,15 @@ export default function TradingPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-xs text-slate-400 font-medium block mb-1">조회건수</label>
+                  <input
+                    type="number"
+                    value={limitCount}
+                    onChange={(e) => setLimitCount(parseInt(e.target.value) || 30)}
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
+                  />
+                </div>
+                <div>
                   <label className="text-xs text-slate-400 font-medium block mb-1">매도수량</label>
                   <input
                     type="number"
@@ -578,15 +587,6 @@ export default function TradingPage() {
                     type="number"
                     value={cashIn || ''}
                     onChange={(e) => setCashIn(parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 font-medium block mb-1">조회건수</label>
-                  <input
-                    type="number"
-                    value={limitCount}
-                    onChange={(e) => setLimitCount(parseInt(e.target.value) || 30)}
                     className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-100 font-mono"
                   />
                 </div>

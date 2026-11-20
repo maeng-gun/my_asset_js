@@ -97,6 +97,94 @@ export const COMMODITY_GROUP_ORDER = [
   '원화',
 ]
 
+export interface GroupOrderEntry {
+  자산군: string
+  세부자산군?: string | null
+  세부자산군2?: string | null
+}
+
+/**
+ * groups 테이블 순서 및 CLASS_ORDER 체계를 기준으로
+ * 자산군 -> 세부자산군 -> 세부자산군2 -> 평가금액 내림차순 -> 계좌 -> 상품명 순 비교 함수를 생성합니다.
+ */
+export function createGroupOrderComparator<
+  T extends {
+    자산군: string
+    세부자산군?: string | null
+    세부자산군2?: string | null
+    평가금액?: number
+    계좌?: string
+    상품명?: string
+    종목명?: string
+  }
+>(groupsMaster?: GroupOrderEntry[]) {
+  const groupMap = new Map<string, number>()
+  const classOrderMap = new Map<string, number>()
+  const class2OrderMap = new Map<string, number>()
+  const class3OrderMap = new Map<string, number>()
+
+  if (groupsMaster && groupsMaster.length > 0) {
+    let idx = 0
+    for (const g of groupsMaster) {
+      if (!g.자산군 || g.자산군 === '합계' || g.자산군 === '<합계>') continue
+      const c1 = g.자산군
+      const c2 = g.세부자산군 || ''
+      const c3 = g.세부자산군2 || ''
+      const key = `${c1}|${c2}|${c3}`
+      if (!groupMap.has(key)) {
+        groupMap.set(key, idx++)
+      }
+      if (!classOrderMap.has(c1)) classOrderMap.set(c1, classOrderMap.size)
+      if (c2 && !class2OrderMap.has(c2)) class2OrderMap.set(c2, class2OrderMap.size)
+      if (c3 && !class3OrderMap.has(c3)) class3OrderMap.set(c3, class3OrderMap.size)
+    }
+  }
+
+  const getOrder = (val: string, customMap: Map<string, number>, fallbackList: string[]) => {
+    if (customMap.size > 0) {
+      if (val === '') return -1
+      const customIdx = customMap.get(val)
+      if (customIdx !== undefined) return customIdx
+    }
+    const fbIdx = fallbackList.indexOf(val)
+    return fbIdx === -1 ? 100000 : customMap.size + fbIdx
+  }
+
+  return (a: T, b: T): number => {
+    const c1A = a.자산군 || ''
+    const c1B = b.자산군 || ''
+    const c2A = a.세부자산군 || ''
+    const c2B = b.세부자산군 || ''
+    const c3A = a.세부자산군2 || ''
+    const c3B = b.세부자산군2 || ''
+
+    const gA = groupMap.size > 0 ? groupMap.get(`${c1A}|${c2A}|${c3A}`) : undefined
+    const gB = groupMap.size > 0 ? groupMap.get(`${c1B}|${c2B}|${c3B}`) : undefined
+
+    if (gA !== undefined && gB !== undefined) {
+      if (gA !== gB) return gA - gB
+    } else {
+      const o1 = getOrder(c1A, classOrderMap, CLASS_ORDER) - getOrder(c1B, classOrderMap, CLASS_ORDER)
+      if (o1 !== 0) return o1
+
+      const o2 = getOrder(c2A, class2OrderMap, CLASS2_ORDER) - getOrder(c2B, class2OrderMap, CLASS2_ORDER)
+      if (o2 !== 0) return o2
+
+      const o3 = getOrder(c3A, class3OrderMap, CLASS3_ORDER) - getOrder(c3B, class3OrderMap, CLASS3_ORDER)
+      if (o3 !== 0) return o3
+    }
+
+    const evalDiff = (b.평가금액 || 0) - (a.평가금액 || 0)
+    if (evalDiff !== 0) return evalDiff
+
+    const aIdx = ACCOUNT_ORDER.indexOf(a.계좌 || '')
+    const bIdx = ACCOUNT_ORDER.indexOf(b.계좌 || '')
+    if (aIdx !== bIdx) return (aIdx === -1 ? 100000 : aIdx) - (bIdx === -1 ? 100000 : bIdx)
+
+    return (a.상품명 || a.종목명 || '').localeCompare(b.상품명 || b.종목명 || '')
+  }
+}
+
 /**
  * 당일 재무상태표 및 손익계산서 평가 (외화 시세 원화환산 통합 평가)
  */
@@ -226,7 +314,8 @@ export function evaluateBalanceSheet(
  */
 export function computeCommodityHoldings(
   evaluatedRecords: BalanceSheetRecord[],
-  exchangeRates: { USD: number; JPY: number }
+  exchangeRates: { USD: number; JPY: number },
+  groupsMaster?: GroupOrderEntry[]
 ) {
   // 1. 종목코드별 합산 (df0) - 모든 종목이 이미 원화 환산 장부/평가금액을 가짐
   const byCode = new Map<string, {
@@ -492,19 +581,7 @@ export function computeCommodityHoldings(
       }
     })
 
-  tComm10.sort((a, b) => {
-    const cA = CLASS_ORDER.indexOf(a.자산군)
-    const cB = CLASS_ORDER.indexOf(b.자산군)
-    if (cA !== cB) return (cA === -1 ? 999 : cA) - (cB === -1 ? 999 : cB)
-
-    const c2A = CLASS2_ORDER.indexOf(a.세부자산군)
-    const c2B = CLASS2_ORDER.indexOf(b.세부자산군)
-    if (c2A !== c2B) return (c2A === -1 ? 999 : c2A) - (c2B === -1 ? 999 : c2B)
-
-    const aIdx = ACCOUNT_ORDER.indexOf(a.계좌)
-    const bIdx = ACCOUNT_ORDER.indexOf(b.계좌)
-    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx)
-  })
+  tComm10.sort(createGroupOrderComparator(groupsMaster))
 
   // 2. 신규: 외화기준 보유현황 산출 (t_ovs_comm)
   const tOvsComm: ForeignHoldingRecord[] = evaluatedRecords

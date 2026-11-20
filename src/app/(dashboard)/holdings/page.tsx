@@ -1,10 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useHoldingsTabStore } from '@/lib/stores/navigation-state'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { Tabs, TabItem } from '@/components/ui/tabs'
-import { getLatestPortfolioSummary } from '@/lib/actions/db'
+import { getLatestPortfolioSummary, getGroups } from '@/lib/actions/db'
 import { formatKRW, formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
@@ -15,6 +16,7 @@ import {
   Globe,
 } from 'lucide-react'
 import { LatestPortfolioSummary, ALLOCATION_ACCOUNTS } from '@/lib/engine/types'
+import { createGroupOrderComparator } from '@/lib/engine/valuation'
 
 const TABS: TabItem[] = [
   { id: 'allocation', label: '계좌별 자산배분', icon: Grid },
@@ -35,9 +37,23 @@ export default function HoldingsPage() {
     },
   })
 
+  // 2. groups 테이블 기준 정렬 순서 로드 (미로드 시 account_allocation 순서 폴백)
+  const { data: groups } = useQuery({
+    queryKey: ['groups-list'],
+    queryFn: async () => await getGroups(),
+  })
+
+  const sortedCommodity3 = useMemo(() => {
+    const list = summary?.t_comm10 || []
+    if (list.length === 0) return []
+    const groupOrderSource =
+      groups && groups.length > 0 ? groups : summary?.account_allocation
+    return [...list].sort(createGroupOrderComparator(groupOrderSource))
+  }, [summary?.t_comm10, summary?.account_allocation, groups])
+
   // TSV 클립보드 엑셀 복사 핸들러 (R Shiny fallbackCopyTextToClipboard 완벽 호환)
   const handleCopyExcel = () => {
-    const data = summary?.t_comm10
+    const data = sortedCommodity3
     if (!data || data.length === 0) {
       toast.error('복사할 데이터가 없습니다.')
       return
@@ -387,23 +403,7 @@ export default function HoldingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {(() => {
-                  const commodityOrder = new Map()
-                  ;(summary?.t_comm || []).forEach((h, i) => {
-                    if (h.상품명 && !commodityOrder.has(h.상품명)) {
-                      commodityOrder.set(h.상품명, i)
-                    }
-                  })
-
-                  const sortedData = [...(summary?.t_comm10 || [])]
-                    .sort((a, b) => {
-                      const orderA = commodityOrder.get(a.상품명) ?? 999999
-                      const orderB = commodityOrder.get(b.상품명) ?? 999999
-                      if (orderA !== orderB) return orderA - orderB
-                      return (a.계좌 || '').localeCompare(b.계좌 || '')
-                    })
-
-                  return sortedData.map((h, i) => (
+                {sortedCommodity3.map((h, i) => (
                     <tr key={i} className="hover:bg-slate-800/40 transition">
                       <td className="py-2.5 px-4 font-sans font-semibold text-slate-200">{h.자산군}</td>
                       <td className="py-2.5 px-4 font-sans text-slate-400">{h.세부자산군 || '-'}</td>
@@ -428,8 +428,7 @@ export default function HoldingsPage() {
                       </td>
                       <td className="py-2.5 px-4 font-sans text-slate-300">{h.계좌}</td>
                     </tr>
-                  ))
-                })()}
+                  ))}
               </tbody>
             </table>
           </CardBody>
