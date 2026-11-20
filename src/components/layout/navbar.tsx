@@ -23,6 +23,7 @@ import {
   Tag,
   MoreVertical,
   LayoutDashboard,
+  BookOpen,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -35,7 +36,10 @@ const NAV_ITEMS = [
   { name: '유동성 관리', href: '/liquidity', icon: Activity },
   ]
 
-export function Navbar() {
+export function Navbar({ showLocalGuide = false }: { showLocalGuide?: boolean }) {
+  const navItems = showLocalGuide
+    ? [...NAV_ITEMS, { name: 'CIO 가이드', href: '/guide', icon: BookOpen }]
+    : NAV_ITEMS
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const supabase = createClient()
@@ -155,87 +159,90 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-800 text-slate-100 shadow-lg">
-      <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="w-full px-4 sm:px-6 2xl:px-8">
+        <div className="flex items-center justify-between h-16 gap-4">
           {/* 로고 및 앱 타이틀 */}
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner group-hover:scale-105 transition">
+          <div className="flex items-center gap-3 shrink-0">
+            <Link href="/dashboard" className="flex items-center gap-2.5 group shrink-0 whitespace-nowrap">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-inner group-hover:scale-105 transition shrink-0">
                 <TrendingUp className="w-5 h-5" />
               </div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+              <span className="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent whitespace-nowrap">
                 포트폴리오 관리
               </span>
             </Link>
 
-            {/* 데스크톱 메뉴 탭 */}
-            <nav className="hidden lg:flex items-center gap-1 ml-6">
-              {NAV_ITEMS.map((item) => {
+            {/* 데스크톱 메뉴 탭 (창 축소 시 숨김, 햄버거 메뉴로 대체) */}
+            <nav className="hidden xl:flex items-center gap-1 ml-4 2xl:ml-6 shrink-0">
+              {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || (item.href !== '/profit' && item.href !== '/dashboard' && pathname.startsWith(item.href))
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition duration-150 whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 2xl:gap-2 px-2.5 2xl:px-3.5 py-1.5 2xl:py-2 rounded-xl text-xs 2xl:text-sm font-medium transition duration-150 whitespace-nowrap shrink-0 ${
                       isActive
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm'
                         : 'text-slate-300 hover:text-slate-100 hover:bg-slate-800/60'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    {item.name}
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.name}</span>
                   </Link>
                 )
               })}
             </nav>
           </div>
 
-          {/* 우측 글로벌 액션 버튼 (인라인) */}
-          <div className="hidden sm:flex items-center gap-3">
-            <button
-              onClick={() => handleReval(false)}
-              disabled={isRevaluing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
-              평가금액 재계산
-            </button>
-            <button
-              onClick={handleRenewEval}
-              disabled={isRenewing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-300 transition"
-            >
-              <RotateCcw className={`w-4 h-4 ${isRenewing ? 'animate-spin' : ''}`} />
-              기초손익 갱신
-            </button>
-            <button
-              onClick={handleExit}
-              disabled={isExiting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-rose-900/40 text-rose-400 transition"
-            >
-              <Power className="w-4 h-4" />
-              나가기
-            </button>
-          </div>
+          {/* 우측 글로벌 액션 버튼 및 모바일/축소화면 햄버거 메뉴 */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* 글로벌 액션 버튼 (인라인, 줄바꿈 방지) */}
+            <div className="hidden sm:flex items-center gap-2 2xl:gap-3 shrink-0">
+              <button
+                onClick={() => handleReval(false)}
+                disabled={isRevaluing}
+                className="flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 transition whitespace-nowrap shrink-0 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 shrink-0 ${isRevaluing ? 'animate-spin' : ''}`} />
+                <span>평가금액 재계산</span>
+              </button>
+              <button
+                onClick={handleRenewEval}
+                disabled={isRenewing}
+                className="flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-800 text-slate-300 transition whitespace-nowrap shrink-0 disabled:opacity-50"
+              >
+                <RotateCcw className={`w-4 h-4 shrink-0 ${isRenewing ? 'animate-spin' : ''}`} />
+                <span>기초손익 갱신</span>
+              </button>
+              <button
+                onClick={handleExit}
+                disabled={isExiting}
+                className="flex items-center gap-1.5 px-2.5 2xl:px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-rose-900/40 text-rose-400 transition whitespace-nowrap shrink-0 disabled:opacity-50"
+              >
+                <Power className="w-4 h-4 shrink-0" />
+                <span>나가기</span>
+              </button>
+            </div>
 
-          {/* 모바일 햄버거 버튼 */}
-          <div className="flex lg:hidden items-center gap-2">
-            
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+            {/* 화면 축소 / 모바일 햄버거 버튼 */}
+            <div className="flex xl:hidden items-center shrink-0">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 rounded-lg text-slate-300 hover:bg-slate-800 transition"
+                aria-label="메뉴 열기"
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 모바일 드로어 메뉴 */}
+      {/* 화면 축소 / 모바일 드로어 메뉴 */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-800 bg-slate-900/95 px-4 pt-3 pb-5 space-y-2">
-          {NAV_ITEMS.map((item) => {
+        <div className="xl:hidden border-t border-slate-800 bg-slate-900/95 px-4 pt-3 pb-5 space-y-2">
+          {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || (item.href !== '/profit' && item.href !== '/dashboard' && pathname.startsWith(item.href))
             return (
@@ -249,37 +256,39 @@ export function Navbar() {
                     : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                {item.name}
+                <Icon className="w-5 h-5 shrink-0" />
+                <span>{item.name}</span>
               </Link>
             )
           })}
-          <div className="pt-3 border-t border-slate-800 flex flex-col gap-2">
+          <div className="sm:hidden pt-3 border-t border-slate-800 flex flex-col gap-2">
+            <button
+              onClick={() => handleReval(false)}
+              disabled={isRevaluing}
+              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-2 py-2 px-4 bg-emerald-500/10 rounded-lg transition"
+            >
+              <RefreshCw className={`w-4 h-4 shrink-0 ${isRevaluing ? 'animate-spin' : ''}`} />
+              평가금액 재계산
+            </button>
+            <div className="flex items-center justify-between px-2">
               <button
-                onClick={() => handleReval(false)}
-                disabled={isRevaluing}
-                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-2 py-2 px-4 bg-emerald-500/10 rounded-lg transition"
+                onClick={handleRenewEval}
+                disabled={isRenewing}
+                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 py-1.5"
               >
-                <RefreshCw className={`w-4 h-4 ${isRevaluing ? 'animate-spin' : ''}`} />
-                평가금액 재계산
+                <RotateCcw className={`w-3.5 h-3.5 shrink-0 ${isRenewing ? 'animate-spin' : ''}`} />
+                기초평가손익 갱신
               </button>
-              <div className="flex items-center justify-between px-2">
-            <button
-              onClick={handleRenewEval}
-              className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 py-1.5"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              기초평가손익 갱신
-            </button>
-            <button
-              onClick={handleExit}
-              className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 py-1.5 font-semibold"
-            >
-              <Power className="w-3.5 h-3.5" />
-              서버 종료 및 나가기
-            </button>
+              <button
+                onClick={handleExit}
+                disabled={isExiting}
+                className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 py-1.5 font-semibold"
+              >
+                <Power className="w-3.5 h-3.5 shrink-0" />
+                서버 종료 및 나가기
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       )}
     </header>

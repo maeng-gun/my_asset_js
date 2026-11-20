@@ -1,5 +1,6 @@
 import { Navbar } from '@/components/layout/navbar'
 import { RealtimeProvider } from '@/components/providers/realtime-provider'
+import { isLocalGuideAvailable } from '@/lib/local-guide'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +9,12 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  const showLocalGuide = isLocalGuideAvailable()
+
   return (
     <RealtimeProvider>
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-        <Navbar />
+        <Navbar showLocalGuide={showLocalGuide} />
         <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
           {children}
         </main>
