@@ -13,13 +13,16 @@ import {
   Search,
   Calendar,
   Layers,
-  ArrowUpRight,
+  GitBranch,
   Shield,
-  Zap,
 } from 'lucide-react'
+import { FiveStageAttributionTab } from './_components/FiveStageAttributionTab'
+import { TpaRiskXRayTab } from './_components/TpaRiskXRayTab'
 
 const TABS: TabItem[] = [
   { id: 'performance', label: '투자성과 (자산군별 BM 대비)', icon: TrendingUp },
+  { id: 'attribution', label: '5단 성과귀인 (Ref → MyPF)', icon: GitBranch },
+  { id: 'xray', label: 'TPA 리스크 & Core/Satellite X-Ray', icon: Shield },
   { id: 'search', label: '종목탐색 (장기 정밀분석)', icon: Search },
 ]
 
@@ -621,7 +624,13 @@ export default function InvestmentStrategyPage() {
         </div>
       )}
 
-      {/* 탭 2: 종목탐색 */}
+      {/* 탭 2: 5단 성과귀인 */}
+      {activeTab === 'attribution' && <FiveStageAttributionTab />}
+
+      {/* 탭 3: TPA 리스크 & Core/Satellite X-Ray */}
+      {activeTab === 'xray' && <TpaRiskXRayTab />}
+
+      {/* 탭 4: 종목탐색 */}
       {activeTab === 'search' && (
         <div className="space-y-6">
           {/* 종목 및 BM 검색 바 */}

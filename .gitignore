@@ -65,3 +65,6 @@ MyAsset.exe
 # local secret & essential ignored files vault (Google Drive junction)
 /secret/
 
+# supabase cli temp
+/supabase/.temp/
+

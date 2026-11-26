@@ -12,21 +12,24 @@ import { format } from 'date-fns'
 import {
   Activity,
   DollarSign,
+  Landmark,
   PieChart,
   PlusCircle,
   Edit2,
   Trash2,
 } from 'lucide-react'
 import { ALLOCATION_ACCOUNTS } from '@/lib/engine/types'
+import { AlmDashboardTab } from './_components/AlmDashboardTab'
 
 const TABS: TabItem[] = [
+  { id: 'alm', label: '가계 ALM & 부채 매칭', icon: Landmark },
   { id: 'inflow', label: '자금유출입', icon: Activity },
   { id: 'total-assets', label: '총자산추이', icon: DollarSign },
   { id: 'available-funds', label: '가용자금추이', icon: PieChart },
 ]
 
 export default function LiquidityPage() {
-  const [activeTab, setActiveTab] = useState('inflow')
+  const [activeTab, setActiveTab] = useState('alm')
   const queryClient = useQueryClient()
 
   // 1. 유출입 폼 상태
@@ -240,6 +243,9 @@ export default function LiquidityPage() {
   return (
     <div className="space-y-6">
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
+
+      {/* 탭 0: 가계 ALM & 부채 매칭 */}
+      {activeTab === 'alm' && <AlmDashboardTab />}
 
       {/* 탭 1: 자금유출입 */}
       {activeTab === 'inflow' && (

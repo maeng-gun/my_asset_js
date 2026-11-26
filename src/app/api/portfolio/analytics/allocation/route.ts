@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TABLES } from '@/lib/supabase/tables'
 import { fetchAll } from '@/lib/supabase/utils'
-
-import { runAllocationBacktest } from '@/lib/engine/backtest'
+import { AlloTableLikeRow, runAllocationBacktest } from '@/lib/engine/backtest'
+import { AllocationPolicyRow } from '@/lib/engine/alm-tpa-types'
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,11 +11,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const baseMonth = searchParams.get('baseMonth') || '2024-05'
 
-    // allo_table 조회
-    const { data: alloRows } = await fetchAll(supabase, TABLES.allo_table, '행번호')
+    const [{ data: alloRows }, { data: policyRows }] = await Promise.all([
+      fetchAll(supabase, TABLES.allo_table, '행번호'),
+      supabase
+        .from(TABLES.allocation_policies)
+        .select('*')
+        .eq('is_current', true),
+    ])
 
-    // 백테스트 엔진 실행
-    const strategies = await runAllocationBacktest(alloRows || [])
+    const strategies = await runAllocationBacktest(
+      (alloRows || []) as AlloTableLikeRow[],
+      (policyRows || []) as AllocationPolicyRow[]
+    )
 
     return NextResponse.json({
       success: true,

@@ -5,6 +5,18 @@ import { TABLES } from '@/lib/supabase/tables'
 import { fetchAll } from '@/lib/supabase/utils'
 import { fastRecalculatePortfolio } from '@/lib/engine/portfolio-runner'
 import { convertToKRW } from '@/lib/engine/bookkeeping'
+import {
+  AllocationPolicyRow,
+  AlmCashflowScheduleRow,
+  AlmConfigRow,
+  AssetStrategyTagRow,
+  CorridorRule,
+  LtcmaModelInputs,
+  TaaScorecard4Axis,
+  Weights9,
+  aggregate9ToAllo6,
+  computeEquityEqBeta,
+} from '@/lib/engine/alm-tpa-types'
 
 export async function getTickers(type?: '투자자산' | '연금자산') {
   const supabase = createAdminClient()
@@ -564,5 +576,266 @@ export async function deleteCategory(key: string, value: string) {
     .eq('key', key)
     .eq('value', value)
   if (error) throw new Error(`[deleteCategory] ${error.message}`)
+  return true
+}
+
+// ==============================================================================
+// ALM · TPA · SAA · TAA Integrated Asset Allocation Actions
+// ==============================================================================
+
+export async function getAlmConfig(): Promise<AlmConfigRow | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from(TABLES.alm_config)
+    .select('*')
+    .eq('id', 'default')
+    .maybeSingle()
+
+  if (error) throw new Error(`[getAlmConfig] ${error.message}`)
+  return (data as AlmConfigRow | null) ?? null
+}
+
+export async function saveAlmConfig(payload: Partial<AlmConfigRow>) {
+  const supabase = createAdminClient()
+  const record = {
+    ...payload,
+    id: payload.id || 'default',
+    updated_at: new Date().toISOString(),
+  }
+  const { error } = await supabase
+    .from(TABLES.alm_config)
+    .upsert(record, { onConflict: 'id' })
+  if (error) throw new Error(`[saveAlmConfig] ${error.message}`)
+  return true
+}
+
+export async function getAlmCashflowSchedules(): Promise<AlmCashflowScheduleRow[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from(TABLES.alm_cashflow_schedules)
+    .select('*')
+    .order('id', { ascending: true })
+
+  if (error) throw new Error(`[getAlmCashflowSchedules] ${error.message}`)
+  return (data || []) as AlmCashflowScheduleRow[]
+}
+
+export async function getAllocationPolicies(): Promise<AllocationPolicyRow[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from(TABLES.allocation_policies)
+    .select('*')
+    .order('effective_date', { ascending: false })
+    .order('id', { ascending: false })
+
+  if (error) throw new Error(`[getAllocationPolicies] ${error.message}`)
+  return (data || []) as AllocationPolicyRow[]
+}
+
+export interface SaveAllocationPoliciesInput {
+  effectiveDate?: string
+  refWeights?: Weights9
+  saaWeights: Weights9
+  taaWeights: Weights9
+  corridorRule?: CorridorRule
+  ltcmaInputs?: LtcmaModelInputs | null
+  taaScorecard?: TaaScorecard4Axis | null
+  rationaleRef?: string
+  rationaleSaa?: string
+  rationaleTaa?: string
+}
+
+export async function saveAllocationPolicies(input: SaveAllocationPoliciesInput) {
+  const supabase = createAdminClient()
+  const effectiveDate = input.effectiveDate || new Date().toISOString().slice(0, 10)
+  const corridorRule: CorridorRule = input.corridorRule || {
+    max_abs_pct: 5.0,
+    min_abs_pct: 1.5,
+    relative_ratio: 0.25,
+  }
+  const nowIso = new Date().toISOString()
+
+  const policiesToSave: Array<{
+    policy_type: 'REF' | 'SAA' | 'TAA'
+    weights_9: Weights9
+    ltcma_inputs: LtcmaModelInputs | null
+    taa_scorecard: TaaScorecard4Axis | null
+    rationale: string | null
+  }> = []
+
+  if (input.refWeights) {
+    policiesToSave.push({
+      policy_type: 'REF',
+      weights_9: input.refWeights,
+      ltcma_inputs: null,
+      taa_scorecard: null,
+      rationale:
+        input.rationaleRef ||
+        '1층 TPA 레퍼런스: 글로벌 올컨트리 주식(환노출 원화환산) + 국내 종합채권',
+    })
+  }
+
+  policiesToSave.push({
+    policy_type: 'SAA',
+    weights_9: input.saaWeights,
+    ltcma_inputs: input.ltcmaInputs ?? null,
+    taa_scorecard: null,
+    rationale: input.rationaleSaa || '2층-A 9대 자산군 장기 SAA 목표비중',
+  })
+
+  policiesToSave.push({
+    policy_type: 'TAA',
+    weights_9: input.taaWeights,
+    ltcma_inputs: null,
+    taa_scorecard: input.taaScorecard ?? null,
+    rationale: input.rationaleTaa || '2층-B 4축 스코어카드 기반 TAA 목표비중',
+  })
+
+  for (const item of policiesToSave) {
+    const { error: deactivateErr } = await supabase
+      .from(TABLES.allocation_policies)
+      .update({ is_current: false, updated_at: nowIso })
+      .eq('policy_type', item.policy_type)
+      .eq('is_current', true)
+
+    if (deactivateErr) {
+      throw new Error(`[saveAllocationPolicies:deactivate:${item.policy_type}] ${deactivateErr.message}`)
+    }
+
+    const { error: insertErr } = await supabase.from(TABLES.allocation_policies).insert({
+      effective_date: effectiveDate,
+      policy_type: item.policy_type,
+      weights_9: item.weights_9,
+      corridor_rule: corridorRule,
+      ltcma_inputs: item.ltcma_inputs,
+      taa_scorecard: item.taa_scorecard,
+      equity_eq_beta_pct: computeEquityEqBeta(item.weights_9),
+      rationale: item.rationale,
+      is_current: true,
+      created_at: nowIso,
+      updated_at: nowIso,
+    })
+
+    if (insertErr) {
+      throw new Error(`[saveAllocationPolicies:insert:${item.policy_type}] ${insertErr.message}`)
+    }
+  }
+
+  // Backward-compatible mirroring to 6-column legacy allo_table
+  await saveBothAlloStrategies(
+    aggregate9ToAllo6(input.saaWeights),
+    aggregate9ToAllo6(input.taaWeights),
+    effectiveDate
+  )
+
+  return true
+}
+
+export async function getAssetStrategyTags(): Promise<AssetStrategyTagRow[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from(TABLES.asset_strategy_tags)
+    .select('*')
+    .order('ticker_code', { ascending: true })
+
+  if (error) throw new Error(`[getAssetStrategyTags] ${error.message}`)
+  return (data || []) as AssetStrategyTagRow[]
+}
+
+export async function upsertAssetStrategyTag(tag: AssetStrategyTagRow) {
+  const supabase = createAdminClient()
+  const record = {
+    ticker_code: tag.ticker_code.trim(),
+    asset_name: tag.asset_name.trim(),
+    strategy_role: tag.strategy_role,
+    factor_cluster: tag.factor_cluster ? tag.factor_cluster.trim() : null,
+    economic_currency: tag.economic_currency ? tag.economic_currency.trim() : null,
+    is_pension_safe_override: Boolean(tag.is_pension_safe_override),
+    equity_beta_override:
+      tag.equity_beta_override !== null && tag.equity_beta_override !== undefined
+        ? Number(tag.equity_beta_override)
+        : null,
+    updated_at: new Date().toISOString(),
+  }
+  const { error } = await supabase
+    .from(TABLES.asset_strategy_tags)
+    .upsert(record, { onConflict: 'ticker_code' })
+
+  if (error) throw new Error(`[upsertAssetStrategyTag] ${error.message}`)
+  return true
+}
+
+export async function deleteAssetStrategyTag(tickerCode: string) {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from(TABLES.asset_strategy_tags)
+    .delete()
+    .eq('ticker_code', tickerCode)
+
+  if (error) throw new Error(`[deleteAssetStrategyTag] ${error.message}`)
+  return true
+}
+
+export async function addAlmCashflowSchedule(
+  record: Omit<AlmCashflowScheduleRow, 'id' | 'created_at' | 'updated_at'>
+) {
+  const supabase = createAdminClient()
+  const nowIso = new Date().toISOString()
+  const payload = {
+    title: record.title.trim(),
+    account: record.account,
+    flow_type: record.flow_type,
+    cadence: record.cadence,
+    amount_krw: Math.round(Number(record.amount_krw) || 0),
+    growth_rate_pct: Number(record.growth_rate_pct) || 0,
+    start_date: record.start_date,
+    end_date: record.end_date || null,
+    is_active: record.is_active ?? true,
+    note: record.note ? record.note.trim() : null,
+    created_at: nowIso,
+    updated_at: nowIso,
+  }
+  const { error } = await supabase.from(TABLES.alm_cashflow_schedules).insert(payload)
+  if (error) throw new Error(`[addAlmCashflowSchedule] ${error.message}`)
+  return true
+}
+
+export async function updateAlmCashflowSchedule(
+  id: number,
+  record: Partial<AlmCashflowScheduleRow>
+) {
+  const supabase = createAdminClient()
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  }
+  if (record.title !== undefined) payload.title = record.title.trim()
+  if (record.account !== undefined) payload.account = record.account
+  if (record.flow_type !== undefined) payload.flow_type = record.flow_type
+  if (record.cadence !== undefined) payload.cadence = record.cadence
+  if (record.amount_krw !== undefined) payload.amount_krw = Math.round(Number(record.amount_krw) || 0)
+  if (record.growth_rate_pct !== undefined)
+    payload.growth_rate_pct = Number(record.growth_rate_pct) || 0
+  if (record.start_date !== undefined) payload.start_date = record.start_date
+  if (record.end_date !== undefined) payload.end_date = record.end_date || null
+  if (record.is_active !== undefined) payload.is_active = Boolean(record.is_active)
+  if (record.note !== undefined) payload.note = record.note ? record.note.trim() : null
+
+  const { error } = await supabase
+    .from(TABLES.alm_cashflow_schedules)
+    .update(payload)
+    .eq('id', id)
+
+  if (error) throw new Error(`[updateAlmCashflowSchedule] ${error.message}`)
+  return true
+}
+
+export async function deleteAlmCashflowSchedule(id: number) {
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from(TABLES.alm_cashflow_schedules)
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(`[deleteAlmCashflowSchedule] ${error.message}`)
   return true
 }

@@ -33,7 +33,7 @@ const NAV_ITEMS = [
   { name: '운용기록', href: '/trading', icon: Receipt },
   { name: '투자전략', href: '/strategy/investment', icon: Lightbulb },
   { name: '배분전략', href: '/strategy/allocation', icon: Layers },
-  { name: '유동성 관리', href: '/liquidity', icon: Activity },
+  { name: 'ALM · 유동성', href: '/liquidity', icon: Activity },
   ]
 
 export function Navbar({ showLocalGuide = false }: { showLocalGuide?: boolean }) {

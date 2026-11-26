@@ -16,4 +16,8 @@ export const TABLES = {
   inflow: 'inflow',
   categories: 'categories',
   allo_table: 'allo_table',
+  alm_config: 'alm_config',
+  alm_cashflow_schedules: 'alm_cashflow_schedules',
+  allocation_policies: 'allocation_policies',
+  asset_strategy_tags: 'asset_strategy_tags',
 } as const

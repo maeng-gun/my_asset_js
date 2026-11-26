@@ -1,7 +1,7 @@
-import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance();
+import YahooFinance from 'yahoo-finance2'
+const yahooFinance = new YahooFinance()
 
-import { format, subYears } from 'date-fns';
+import { format, subYears } from 'date-fns'
 import {
   calculateReturns,
   calculateCumulativeReturns,
@@ -9,125 +9,203 @@ import {
   calculateAnnualizedVolatility,
   calculateSharpeRatio,
   calculateMDD,
-} from './stats-helpers';
+} from './stats-helpers'
+import {
+  AllocationPolicyRow,
+  MAJOR_9_KEYS,
+  Major9Key,
+  Weights9,
+  createZeroWeights9,
+  normalizeWeights9,
+} from './alm-tpa-types'
+import {
+  DEFAULT_REF_WEIGHTS_9,
+  DEFAULT_SAA_WEIGHTS_9,
+  DEFAULT_TAA_WEIGHTS_9,
+} from './saa-taa-optimizer'
+import { MAJOR_9_BM_TICKERS } from './attribution-engine'
 
-const ASSET_BMS = {
-  '국내주식': '305050.KS',
-  '해외주식': '360200.KS',
-  '만기보유채권': '114460.KS',
-  '시장형채권': '114460.KS',
-  '실물자산': '411060.KS',
-  '인컴자산': '329200.KS'
-};
+export interface AlloTableLikeRow {
+  행번호?: number
+  배분일자?: string
+  구분?: string
+  국내주식?: number
+  해외주식?: number
+  만기보유채권?: number
+  시장형채권?: number
+  실물자산?: number
+  인컴자산?: number
+}
 
-export async function runAllocationBacktest(alloRows: any[]) {
-  const saaRow = alloRows.find((r: any) => r.구분 === 'SAA') || { 국내주식: 19.5, 해외주식: 45.5, 만기보유채권: 17.4, 시장형채권: 2.6, 실물자산: 8.45, 인컴자산: 4.55 }
-  const taa1Row = alloRows.find((r: any) => r.구분 === 'TAA1') || { 국내주식: 21.0, 해외주식: 49.0, 만기보유채권: 15.225, 시장형채권: 2.275, 실물자산: 6.825, 인컴자산: 3.675 }
-  const taa2Row = alloRows.find((r: any) => r.구분 === 'TAA2') || { 국내주식: 19.5, 해외주식: 45.5, 만기보유채권: 17.0, 시장형채권: 3.0, 실물자산: 5.8, 인컴자산: 3.2 }
+export function selectLatestAlloRow(
+  alloRows: AlloTableLikeRow[],
+  strategyKeys: string[]
+): AlloTableLikeRow | undefined {
+  if (!alloRows || alloRows.length === 0) return undefined
+  // Sort chronologically by 배분일자 then 행번호 ascending, then search from latest
+  const sorted = [...alloRows].sort((a, b) => {
+    const da = String(a.배분일자 || '')
+    const db = String(b.배분일자 || '')
+    if (da !== db) return da.localeCompare(db)
+    return (Number(a.행번호) || 0) - (Number(b.행번호) || 0)
+  })
+  for (const key of strategyKeys) {
+    const found = [...sorted].reverse().find((r) => r.구분 === key)
+    if (found) return found
+  }
+  return undefined
+}
 
-  const today = new Date();
-  const startDate = format(subYears(today, 5), 'yyyy-MM-dd'); // 5년 백테스트
-  const endDate = format(today, 'yyyy-MM-dd');
+export function allo6RowToWeights9(row?: AlloTableLikeRow): Weights9 {
+  if (!row) return { ...DEFAULT_SAA_WEIGHTS_9 }
+  const out = createZeroWeights9()
+  out.선진국주식 = Number(row.해외주식) || 0
+  // Legacy 6-col '국내주식' combined 국내+신흥국; approximate 85/15 split if converting legacy row
+  const domAndEm = Number(row.국내주식) || 0
+  out.국내주식 = Number((domAndEm * 0.85).toFixed(2))
+  out.신흥국주식 = Number((domAndEm * 0.15).toFixed(2))
+  // Legacy 6-col '실물자산' combined 귀금속+원자재
+  const real = Number(row.실물자산) || 0
+  out.귀금속 = Number((real * 0.7).toFixed(2))
+  out.원자재 = Number((real * 0.3).toFixed(2))
+  out.인컴자산 = Number(row.인컴자산) || 0
+  out.만기보유채권 = Number(row.만기보유채권) || 0
+  out.시장형채권 = Number(row.시장형채권) || 0
+  const used =
+    out.선진국주식 +
+    out.국내주식 +
+    out.신흥국주식 +
+    out.귀금속 +
+    out.원자재 +
+    out.인컴자산 +
+    out.만기보유채권 +
+    out.시장형채권
+  out.현금성자산 = Math.max(0, Number((100 - used).toFixed(2)))
+  return out
+}
+
+export async function runAllocationBacktest(
+  alloRows: AlloTableLikeRow[],
+  policies: AllocationPolicyRow[] = []
+) {
+  const refPol = policies.find((p) => p.policy_type === 'REF' && p.is_current)
+  const saaPol = policies.find((p) => p.policy_type === 'SAA' && p.is_current)
+  const taaPol = policies.find((p) => p.policy_type === 'TAA' && p.is_current)
+
+  const latestSaaRow = selectLatestAlloRow(alloRows, ['SAA'])
+  const latestTaaRow = selectLatestAlloRow(alloRows, ['TAA', 'TAA2', 'TAA1'])
+
+  const refWeights: Weights9 = refPol?.weights_9
+    ? normalizeWeights9(refPol.weights_9)
+    : DEFAULT_REF_WEIGHTS_9
+  const saaWeights: Weights9 = saaPol?.weights_9
+    ? normalizeWeights9(saaPol.weights_9)
+    : latestSaaRow
+    ? allo6RowToWeights9(latestSaaRow)
+    : DEFAULT_SAA_WEIGHTS_9
+  const taaWeights: Weights9 = taaPol?.weights_9
+    ? normalizeWeights9(taaPol.weights_9)
+    : latestTaaRow
+    ? allo6RowToWeights9(latestTaaRow)
+    : DEFAULT_TAA_WEIGHTS_9
+
+  const today = new Date()
+  const startDate = format(subYears(today, 5), 'yyyy-MM-dd')
+  const endDate = format(today, 'yyyy-MM-dd')
 
   const queryOptions = {
     period1: startDate,
     period2: endDate,
     interval: '1d' as const,
-  };
-
-  const [domEq, forEq, bond, real, inc] = await Promise.all([
-    (yahooFinance.historical(ASSET_BMS['국내주식'], queryOptions) as Promise<any[]>).catch(() => [] as any[]),
-    (yahooFinance.historical(ASSET_BMS['해외주식'], queryOptions) as Promise<any[]>).catch(() => [] as any[]),
-    (yahooFinance.historical(ASSET_BMS['만기보유채권'], queryOptions) as Promise<any[]>).catch(() => [] as any[]),
-    (yahooFinance.historical(ASSET_BMS['실물자산'], queryOptions) as Promise<any[]>).catch(() => [] as any[]),
-    (yahooFinance.historical(ASSET_BMS['인컴자산'], queryOptions) as Promise<any[]>).catch(() => [] as any[])
-  ]);
-
-  const dateMap = new Map<string, number>();
-  forEq.forEach((r: any) => { if (r.date && r.adjClose) dateMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
-
-  const bondMap = new Map<string, number>();
-  bond.forEach((r: any) => { if (r.date && r.adjClose) bondMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
-
-  const realMap = new Map<string, number>();
-  real.forEach((r: any) => { if (r.date && r.adjClose) realMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
-
-  const incMap = new Map<string, number>();
-  inc.forEach((r: any) => { if (r.date && r.adjClose) incMap.set(format(r.date, 'yyyy-MM-dd'), r.adjClose); });
-
-  const alignedDates: string[] = [];
-  const prices = {
-    '국내주식': [] as number[],
-    '해외주식': [] as number[],
-    '만기보유채권': [] as number[],
-    '시장형채권': [] as number[],
-    '실물자산': [] as number[],
-    '인컴자산': [] as number[]
-  };
-
-  for (const r of domEq) {
-    if (!r.date || !r.adjClose) continue;
-    const dStr = format(r.date, 'yyyy-MM-dd');
-    
-    const forP = dateMap.get(dStr);
-    const bondP = bondMap.get(dStr);
-    const realP = realMap.get(dStr);
-    const incP = incMap.get(dStr);
-
-    if (forP && bondP && realP && incP) {
-      alignedDates.push(dStr);
-      prices['국내주식'].push(r.adjClose);
-      prices['해외주식'].push(forP);
-      prices['만기보유채권'].push(bondP);
-      prices['시장형채권'].push(bondP);
-      prices['실물자산'].push(realP);
-      prices['인컴자산'].push(incP);
-    }
   }
+
+  const tickerEntries = MAJOR_9_KEYS.filter((k) => k !== '현금성자산')
+  const fetched = await Promise.all(
+    tickerEntries.map(async (k) => {
+      const sym = MAJOR_9_BM_TICKERS[k]
+      const rows = await (
+        yahooFinance.historical(sym, queryOptions) as Promise<
+          Array<{ date?: Date; adjClose?: number; close?: number }>
+        >
+      ).catch(() => [])
+      const map = new Map<string, number>()
+      for (const r of rows) {
+        const px = r.adjClose ?? r.close
+        if (r.date && px && px > 0) {
+          map.set(format(r.date, 'yyyy-MM-dd'), px)
+        }
+      }
+      return [k, map] as const
+    })
+  )
+
+  const priceMaps = new Map<Major9Key, Map<string, number>>(fetched)
+  const coreBackboneDates = Array.from(
+    new Set([
+      ...(priceMaps.get('국내주식')?.keys() ?? []),
+      ...(priceMaps.get('선진국주식')?.keys() ?? []),
+    ])
+  ).sort()
+
+  const alignedDates = coreBackboneDates.filter(
+    (d) => priceMaps.get('국내주식')?.has(d) && priceMaps.get('선진국주식')?.has(d)
+  )
 
   if (alignedDates.length < 2) {
-    throw new Error('Not enough overlapping data points for backtesting.');
+    throw new Error('Not enough overlapping data points for backtesting.')
   }
 
-  const returns = {
-    '국내주식': calculateReturns(prices['국내주식']),
-    '해외주식': calculateReturns(prices['해외주식']),
-    '만기보유채권': calculateReturns(prices['만기보유채권']),
-    '시장형채권': calculateReturns(prices['시장형채권']),
-    '실물자산': calculateReturns(prices['실물자산']),
-    '인컴자산': calculateReturns(prices['인컴자산']),
-  };
+  // Build aligned price series with nearest-prior forward-fill and bond/equity proxy fallback for late-listed ETFs
+  const dailyReturnsByAsset = {} as Record<Major9Key, number[]>
+  for (const k of tickerEntries) {
+    const map = priceMaps.get(k) ?? new Map<string, number>()
+    const prices: number[] = []
+    let lastPx = 0
 
-  const generateStrategyStats = (weights: any, name: string) => {
-    const wDOM = (weights.국내주식 || 0) / 100;
-    const wFOR = (weights.해외주식 || 0) / 100;
-    const wBND = (weights.만기보유채권 || 0) / 100;
-    const wMKT = (weights.시장형채권 || 0) / 100;
-    const wREL = (weights.실물자산 || 0) / 100;
-    const wINC = (weights.인컴자산 || 0) / 100;
+    for (const d of alignedDates) {
+      const exact = map.get(d)
+      if (exact && exact > 0) {
+        lastPx = exact
+        prices.push(exact)
+      } else if (lastPx > 0) {
+        prices.push(lastPx)
+      } else {
+        // Pre-listing fallback proxy: use 시장형채권->만기보유채권, else 국내주식/선진국주식
+        const fallbackMap =
+          k === '시장형채권'
+            ? priceMaps.get('만기보유채권')
+            : k === '신흥국주식'
+            ? priceMaps.get('선진국주식')
+            : priceMaps.get('만기보유채권')
+        const fb = fallbackMap?.get(d) ?? 100
+        prices.push(fb)
+      }
+    }
+    dailyReturnsByAsset[k] = calculateReturns(prices)
+  }
 
-    const cashW = Math.max(0, 1 - (wDOM + wFOR + wBND + wMKT + wREL + wINC));
+  const cashDailyRet = 0.0265 / 252
+  dailyReturnsByAsset.현금성자산 = Array.from(
+    { length: dailyReturnsByAsset.국내주식.length },
+    () => cashDailyRet
+  )
 
-    const pfReturns = [];
-    for (let i = 0; i < returns['국내주식'].length; i++) {
-      const dailyRet = 
-        returns['국내주식'][i] * wDOM +
-        returns['해외주식'][i] * wFOR +
-        returns['만기보유채권'][i] * wBND +
-        returns['시장형채권'][i] * wMKT +
-        returns['실물자산'][i] * wREL +
-        returns['인컴자산'][i] * wINC +
-        0 * cashW;
-      
-      pfReturns.push(dailyRet);
+  const generateStrategyStats = (weights: Weights9, name: string) => {
+    const len = dailyReturnsByAsset.국내주식.length
+    const pfReturns: number[] = []
+    for (let i = 0; i < len; i++) {
+      let r = 0
+      for (const k of MAJOR_9_KEYS) {
+        r += ((weights[k] || 0) / 100) * (dailyReturnsByAsset[k][i] ?? 0)
+      }
+      pfReturns.push(r)
     }
 
-    const pfCumReturns = calculateCumulativeReturns(pfReturns);
-    
-    const cagr = calculateCAGR(pfCumReturns[pfCumReturns.length - 1], alignedDates.length) * 100;
-    const vol = calculateAnnualizedVolatility(pfReturns) * 100;
-    const sharpe = calculateSharpeRatio(pfReturns);
-    const mdd = calculateMDD(pfCumReturns, false) * 100;
+    const pfCumReturns = calculateCumulativeReturns(pfReturns)
+    const cagr = calculateCAGR(pfCumReturns[pfCumReturns.length - 1], alignedDates.length) * 100
+    const vol = calculateAnnualizedVolatility(pfReturns) * 100
+    const sharpe = calculateSharpeRatio(pfReturns)
+    const mdd = calculateMDD(pfCumReturns, false) * 100
 
     return {
       전략명: name,
@@ -135,15 +213,13 @@ export async function runAllocationBacktest(alloRows: any[]) {
       연환산수익률: Number(cagr.toFixed(2)),
       연환산변동성: Number(vol.toFixed(2)),
       Sharpe: Number(sharpe.toFixed(2)),
-      MDD: Number(mdd.toFixed(2))
-    };
-  };
+      MDD: Number(mdd.toFixed(2)),
+    }
+  }
 
-  const strategies = [
-    generateStrategyStats(saaRow, 'SAA (전략적 자산배분)'),
-    generateStrategyStats(taa1Row, 'TAA1 (전술적 자산배분 1)'),
-    generateStrategyStats(taa2Row, 'TAA2 (전술적 자산배분 2)'),
-  ];
-
-  return strategies;
+  return [
+    generateStrategyStats(refWeights, '1층 Ref (75:25 레퍼런스)'),
+    generateStrategyStats(saaWeights, '2층-A SAA (장기 전략적 배분)'),
+    generateStrategyStats(taaWeights, '2층-B TAA (현행 전술적 배분)'),
+  ]
 }
